@@ -7,6 +7,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -19,6 +21,13 @@ export async function registerForPushNotifications(uid: string): Promise<void> {
   }
   if (finalStatus !== 'granted') return;
 
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  let token: string;
+  try {
+    token = (await Notifications.getExpoPushTokenAsync()).data;
+  } catch {
+    // getExpoPushTokenAsync can throw in development when no EAS projectId is configured.
+    // Fail silently rather than crashing the app.
+    return;
+  }
   await updateDoc(doc(db, 'users', uid), { fcmToken: token });
 }

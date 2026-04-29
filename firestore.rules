@@ -7,13 +7,14 @@ service cloud.firestore {
     }
     function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
 
-    match /config/inviteCode {
-      allow read: if isAuth();
+    match /config/{doc} {
+      allow read: if true;
       allow write: if false;
     }
     match /users/{uid} {
       allow read: if isAuth();
-      allow create, update: if isOwner(uid);
+      allow create, update: if isOwner(uid) || isHost();
+      allow delete: if isHost();
     }
     match /posts/{postId} {
       allow read: if isAuth();

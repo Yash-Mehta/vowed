@@ -12,6 +12,7 @@ import { auth } from '../lib/firebase';
 import { getUser } from '../lib/firestore';
 import { useAuthStore } from '../store/authStore';
 import { registerForPushNotifications } from '../lib/notifications';
+import { tryAutoLogin, clearCredentials } from '../lib/secureAuth';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,10 +39,15 @@ export default function RootLayout() {
         const doc = await getUser(user.uid);
         setUserDoc(doc);
         registerForPushNotifications(user.uid).catch(console.error);
+        setLoading(false);
       } else {
-        setUserDoc(null);
+        const loggedIn = await tryAutoLogin();
+        if (!loggedIn) {
+          setUserDoc(null);
+          setLoading(false);
+        }
+        // if loggedIn, onAuthStateChanged fires again with the user
       }
-      setLoading(false);
     });
     return unsub;
   }, []);
@@ -51,10 +57,10 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)';
     if (!firebaseUser && !inAuth) {
       router.replace('/(auth)/invite');
-    } else if (firebaseUser && !isProfileComplete && segments[0] !== '(auth)') {
+    } else if (firebaseUser && inAuth) {
+      router.replace(isProfileComplete ? '/(tabs)/feed' : '/(auth)/profile-setup');
+    } else if (firebaseUser && !isProfileComplete && !inAuth) {
       router.replace('/(auth)/profile-setup');
-    } else if (firebaseUser && isProfileComplete && inAuth) {
-      router.replace('/(tabs)/feed');
     }
   }, [isLoading, fontsLoaded, firebaseUser, isProfileComplete, segments]);
 

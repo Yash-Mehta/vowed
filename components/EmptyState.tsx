@@ -2,7 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../constants/theme';
 
 interface Props {
-  icon: string;
+  icon?: string;
   title: string;
   subtitle?: string;
 }
@@ -10,7 +10,7 @@ interface Props {
 export function EmptyState({ icon, title, subtitle }: Props) {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>{icon}</Text>
+      {icon ? <Text style={styles.icon}>{icon}</Text> : null}
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>

@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# tool artifacts
+.claude-flow/
+.swarm/

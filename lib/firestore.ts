@@ -33,7 +33,12 @@ export async function updateUser(uid: string, data: Partial<UserDoc>) {
   await updateDoc(doc(db, 'users', uid), data);
 }
 
-export async function validateInviteCode(code: string): Promise<boolean> {
-  const snap = await getDoc(doc(db, 'config', 'inviteCode'));
-  return snap.exists() && snap.data().code === code;
+export async function validateInviteCode(code: string): Promise<'guest' | 'host' | false> {
+  const [guestSnap, hostSnap] = await Promise.all([
+    getDoc(doc(db, 'config', 'inviteCode')),
+    getDoc(doc(db, 'config', 'hostInviteCode')),
+  ]);
+  if (guestSnap.exists() && guestSnap.data().code === code) return 'guest';
+  if (hostSnap.exists() && hostSnap.data().code === code) return 'host';
+  return false;
 }

@@ -9,12 +9,14 @@ import {
   ScrollView,
   Animated,
   ImageBackground,
+  Image,
+  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '../../store/authStore';
 import { validateInviteCode } from '../../lib/firestore';
-import { MonogramLarge } from '../../components/MonogramLarge';
 import { SprigDivider } from '../../components/SprigDivider';
 import { theme } from '../../constants/theme';
 import { WEDDING, getDaysUntilWedding } from '../../constants/WEDDING';
@@ -26,6 +28,7 @@ export default function InviteScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { setPendingRole } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
 
@@ -39,10 +42,11 @@ export default function InviteScreen() {
   async function handleJoin() {
     if (!code.trim()) return;
     setLoading(true);
-    const valid = await validateInviteCode(code.trim().toUpperCase());
+    const role = await validateInviteCode(code.trim().toUpperCase());
     setLoading(false);
-    if (valid) {
-      router.push({ pathname: '/(auth)/register', params: { code: code.trim().toUpperCase() } });
+    if (role) {
+      setPendingRole(role);
+      router.push({ pathname: '/(auth)/register', params: { code: code.trim().toUpperCase(), role } });
     } else {
       Alert.alert('Invalid code', 'Please check the code and try again.');
     }
@@ -50,12 +54,20 @@ export default function InviteScreen() {
 
   const daysAway = getDaysUntilWedding();
 
+  const scrollRef = useRef<ScrollView>(null);
+
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}>
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
-      bounces={false}>
+      bounces={false}
+      keyboardShouldPersistTaps="handled">
       {/* Hero image */}
       <View style={styles.hero}>
         <ImageBackground source={{ uri: HERO_URL }} style={styles.heroImage} resizeMode="cover">
@@ -74,9 +86,15 @@ export default function InviteScreen() {
 
       {/* Invitation card */}
       <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 14 }}>
-          <MonogramLarge size={150} color={theme.colors.accent} />
-        </Animated.View>
+        <View style={{ marginBottom: 14, marginTop: 28 }}>
+          <View style={styles.logoCircle}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="cover"
+            />
+          </View>
+        </View>
 
         <Text style={styles.eyebrow}>Together with their families</Text>
 
@@ -101,6 +119,9 @@ export default function InviteScreen() {
           autoCorrect={false}
           returnKeyType="join"
           onSubmitEditing={handleJoin}
+          onFocus={() => {
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+          }}
         />
 
         <TouchableOpacity
@@ -112,8 +133,13 @@ export default function InviteScreen() {
         </TouchableOpacity>
 
         <Text style={styles.countdown}>{daysAway} days · till the big day</Text>
+
+        <TouchableOpacity style={styles.signInLink} onPress={() => router.push('/(auth)/login')}>
+          <Text style={styles.signInText}>Already have an account? <Text style={styles.signInBold}>Sign in</Text></Text>
+        </TouchableOpacity>
       </Animated.View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -124,7 +150,7 @@ const styles = StyleSheet.create({
   heroImage: { flex: 1 },
   badge: {
     position: 'absolute',
-    top: 290,
+    top: 200,
     alignSelf: 'center',
     backgroundColor: 'rgba(250,246,241,0.94)',
     paddingHorizontal: 16,
@@ -148,6 +174,16 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: 'center',
     marginTop: -50,
+  },
+  logoCircle: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 150,
+    height: 150,
   },
   eyebrow: {
     fontSize: 10,
@@ -229,4 +265,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontFamily: theme.fonts.sans,
   },
+  signInLink: { marginTop: 20, padding: 8 },
+  signInText: { fontSize: 13, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
+  signInBold: { color: theme.colors.accent, fontWeight: '600' },
 });

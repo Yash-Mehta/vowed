@@ -12,27 +12,37 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
 import { createUser } from '../../lib/firestore';
-import { useAuthStore } from '../../store/authStore';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
+  const { pendingRole: role, setUserDoc } = useAuthStore();
   const [displayName, setDisplayName] = useState('');
   const [howTheyKnow, setHowTheyKnow] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { setUserDoc } = useAuthStore();
 
   async function pickAvatar() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) setAvatarUri(result.assets[0].uri);
+    Alert.alert('Add photo', undefined, [
+      {
+        text: 'Camera',
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+          if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Photo Library',
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+          if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   }
 
   async function uploadAvatar(uid: string, uri: string): Promise<string> {
@@ -63,7 +73,7 @@ export default function ProfileSetupScreen() {
         displayName: displayName.trim(),
         howTheyKnow: howTheyKnow.trim(),
         photoURL,
-        role: 'guest' as const,
+        role,
       };
       await createUser(uid, doc);
       setUserDoc({ ...doc, fcmToken: null, createdAt: null });
@@ -97,7 +107,6 @@ export default function ProfileSetupScreen() {
         onChangeText={setDisplayName}
         placeholder="Your name"
         placeholderTextColor={theme.colors.ink4}
-        color={theme.colors.ink}
       />
       <TextInput
         style={[styles.input, styles.multiline]}
@@ -105,7 +114,6 @@ export default function ProfileSetupScreen() {
         onChangeText={(t) => setHowTheyKnow(t.slice(0, 100))}
         placeholder="How do you know the couple? (e.g. college friends with Sarah)"
         placeholderTextColor={theme.colors.ink4}
-        color={theme.colors.ink}
         multiline
         numberOfLines={3}
       />
@@ -163,6 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: theme.colors.card,
     fontFamily: theme.fonts.sans,
+    color: theme.colors.ink,
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   charCount: {

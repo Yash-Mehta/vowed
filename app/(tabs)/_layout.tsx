@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
 import { theme } from '../../constants/theme';
 import { WEDDING } from '../../constants/WEDDING';
@@ -82,7 +83,7 @@ export default function TabLayout() {
             ? {
                 tabPress: (e) => {
                   e.preventDefault();
-                  Linking.openURL(WEDDING.registryUrl);
+                  WebBrowser.openBrowserAsync(WEDDING.registryUrl);
                 },
               }
             : undefined

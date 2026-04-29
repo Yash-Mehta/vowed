@@ -4,7 +4,10 @@
     "slug": "our-day",
     "version": "1.0.0",
     "scheme": "ourday",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,8 +31,17 @@
       "expo-router",
       "expo-font",
       "expo-notifications",
-      ["expo-image-picker", { "photosPermission": "Allow Our Day to access your photos." }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Our Day to access your photos."
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store"
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

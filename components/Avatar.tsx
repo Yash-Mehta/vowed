@@ -11,7 +11,7 @@ interface Props {
 export function Avatar({ uri, name, size = 40, ringed = false }: Props) {
   const initials = name
     .split(' ')
-    .map((w) => w[0])
+    .map((w) => w[0] ?? '')
     .join('')
     .slice(0, 2)
     .toUpperCase();

@@ -1,4 +1,4 @@
-import { Svg, G, Path, Text as SvgText, TSpan, Circle, Defs, LinearGradient, Stop, Ellipse } from 'react-native-svg';
+import { Svg, G, Path, Text as SvgText, TSpan, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { theme } from '../constants/theme';
 
 interface Props {
@@ -43,7 +43,7 @@ export function MonogramLarge({ size = 180, color = theme.colors.accent }: Props
         fontStyle="italic"
         fontWeight="500"
         fill={color}
-        letterSpacing={-2}>
+        {...({ letterSpacing: -2 } as any)}>
         Y
         <TSpan dx={-4} dy={-2} fontStyle="normal" fontSize={36} fill={color} fillOpacity={0.7}>&amp;</TSpan>
         <TSpan dx={-2}>V</TSpan>
