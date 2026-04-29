@@ -12,14 +12,14 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode } from '../../lib/firestore';
+import { validateInviteCode, CodeIndexDoc } from '../../lib/firestore';
 import { SprigDivider } from '../../components/SprigDivider';
 import { theme } from '../../constants/theme';
-import { WEDDING, getDaysUntilWedding } from '../../constants/WEDDING';
 
 const HERO_URL =
   'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80';
@@ -27,118 +27,127 @@ const HERO_URL =
 export default function InviteScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const router = useRouter();
-  const { setPendingRole } = useAuthStore();
+  const { setPendingRole, setPendingWeddingId } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }),
-    ]).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
   }, []);
 
   async function handleJoin() {
     if (!code.trim()) return;
     setLoading(true);
-    const role = await validateInviteCode(code.trim().toUpperCase());
+    const result = await validateInviteCode(code.trim().toUpperCase());
     setLoading(false);
-    if (role) {
-      setPendingRole(role);
-      router.push({ pathname: '/(auth)/register', params: { code: code.trim().toUpperCase(), role } });
+    if (result) {
+      setPendingRole(result.role);
+      setPendingWeddingId(result.weddingId);
+      setPreview(result.preview);
+      router.push({
+        pathname: '/(auth)/register',
+        params: { code: code.trim().toUpperCase(), role: result.role, weddingId: result.weddingId },
+      });
     } else {
       Alert.alert('Invalid code', 'Please check the code and try again.');
     }
   }
-
-  const daysAway = getDaysUntilWedding();
-
-  const scrollRef = useRef<ScrollView>(null);
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}>
-    <ScrollView
-      ref={scrollRef}
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-      showsVerticalScrollIndicator={false}
-      bounces={false}
-      keyboardShouldPersistTaps="handled">
-      {/* Hero image */}
-      <View style={styles.hero}>
-        <ImageBackground source={{ uri: HERO_URL }} style={styles.heroImage} resizeMode="cover">
-          <LinearGradient
-            colors={['rgba(42,29,23,0.10)', 'rgba(250,246,241,0)', 'rgba(250,246,241,1)']}
-            locations={[0, 0.4, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-        </ImageBackground>
-      </View>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        keyboardShouldPersistTaps="handled">
 
-      {/* Invited pill badge */}
-      <Animated.View style={[styles.badge, { opacity: fadeAnim }]}>
-        <Text style={styles.badgeText}>You're invited</Text>
-      </Animated.View>
-
-      {/* Invitation card */}
-      <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-        <View style={{ marginBottom: 14, marginTop: 28 }}>
-          <View style={styles.logoCircle}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.logoImage}
-              resizeMode="cover"
+        <View style={styles.hero}>
+          <ImageBackground source={{ uri: HERO_URL }} style={styles.heroImage} resizeMode="cover">
+            <LinearGradient
+              colors={['rgba(42,29,23,0.10)', 'rgba(250,246,241,0)', 'rgba(250,246,241,1)']}
+              locations={[0, 0.4, 1]}
+              style={StyleSheet.absoluteFill}
             />
+          </ImageBackground>
+        </View>
+
+        <Animated.View style={[styles.badge, { opacity: fadeAnim }]}>
+          <Text style={styles.badgeText}>You're invited</Text>
+        </Animated.View>
+
+        <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
+          <View style={{ marginBottom: 14, marginTop: 200 }}>
+            <View style={styles.logoCircle}>
+              <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="cover" />
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.eyebrow}>Together with their families</Text>
+          <Text style={styles.eyebrow}>Together with their families</Text>
 
-        <Text style={styles.nameDisplay}>Yash</Text>
-        <Text style={styles.and}>and</Text>
-        <Text style={styles.nameDisplay}>Vaani</Text>
+          {preview ? (
+            <>
+              <Text style={styles.nameDisplay}>{preview.coupleName.split(' & ')[0] ?? preview.coupleName}</Text>
+              <Text style={styles.and}>and</Text>
+              <Text style={styles.nameDisplay}>{preview.coupleName.split(' & ')[1] ?? ''}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.nameDisplay}>—</Text>
+              <Text style={styles.and}>and</Text>
+              <Text style={styles.nameDisplay}>—</Text>
+            </>
+          )}
 
-        <View style={styles.dividerWrap}>
-          <SprigDivider color={theme.colors.accent} />
-        </View>
+          <View style={styles.dividerWrap}>
+            <SprigDivider color={theme.colors.accent} />
+          </View>
 
-        <Text style={styles.dateStamp}>{WEDDING.dateStamp}</Text>
-        <Text style={styles.venue}>{WEDDING.venue}</Text>
+          {preview && (
+            <>
+              <Text style={styles.dateStamp}>{preview.dateStamp}</Text>
+              <Text style={styles.venue}>{preview.venue}</Text>
+            </>
+          )}
 
-        <TextInput
-          style={styles.input}
-          value={code}
-          onChangeText={setCode}
-          placeholder="INVITE CODE"
-          placeholderTextColor={theme.colors.ink4}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="join"
-          onSubmitEditing={handleJoin}
-          onFocus={() => {
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
-          }}
-        />
+          <TextInput
+            style={styles.input}
+            value={code}
+            onChangeText={setCode}
+            placeholder="INVITE CODE"
+            placeholderTextColor={theme.colors.ink4}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="join"
+            onSubmitEditing={handleJoin}
+            onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
+          />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleJoin}
-          disabled={loading}
-          activeOpacity={0.85}>
-          <Text style={styles.buttonText}>{loading ? 'Checking…' : 'Open the album'}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleJoin}
+            disabled={loading}
+            activeOpacity={0.85}>
+            {loading
+              ? <ActivityIndicator color={theme.colors.bg} />
+              : <Text style={styles.buttonText}>Open the album</Text>}
+          </TouchableOpacity>
 
-        <Text style={styles.countdown}>{daysAway} days · till the big day</Text>
+          <TouchableOpacity style={styles.signInLink} onPress={() => router.push('/(auth)/login')}>
+            <Text style={styles.signInText}>Already have an account? <Text style={styles.signInBold}>Sign in</Text></Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.signInLink} onPress={() => router.push('/(auth)/login')}>
-          <Text style={styles.signInText}>Already have an account? <Text style={styles.signInBold}>Sign in</Text></Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </ScrollView>
+          <TouchableOpacity style={styles.createLink} onPress={() => router.push('/(onboarding)/create-account')}>
+            <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -175,16 +184,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: -50,
   },
-  logoCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    overflow: 'hidden',
-  },
-  logoImage: {
-    width: 150,
-    height: 150,
-  },
+  logoCircle: { width: 150, height: 150, borderRadius: 75, overflow: 'hidden' },
+  logoImage: { width: 150, height: 150 },
   eyebrow: {
     fontSize: 10,
     fontWeight: '600',
@@ -253,19 +254,11 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 6,
   },
-  buttonText: {
-    color: theme.colors.bg,
-    fontSize: 15,
-    fontWeight: '500',
-    fontFamily: theme.fonts.sans,
-  },
-  countdown: {
-    fontSize: 11,
-    color: theme.colors.ink3,
-    marginTop: 12,
-    fontFamily: theme.fonts.sans,
-  },
+  buttonText: { color: theme.colors.bg, fontSize: 15, fontWeight: '500', fontFamily: theme.fonts.sans },
   signInLink: { marginTop: 20, padding: 8 },
   signInText: { fontSize: 13, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
   signInBold: { color: theme.colors.accent, fontWeight: '600' },
+  createLink: { marginTop: 4, padding: 8 },
+  createText: { fontSize: 13, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
+  createBold: { color: theme.colors.accentDeep, fontWeight: '600' },
 });

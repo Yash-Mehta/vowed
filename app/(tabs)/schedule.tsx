@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useAuthStore } from '../../store/authStore';
+import { useWeddingStore } from '../../store/weddingStore';
+import { scheduleCol } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { ScheduleEventCard, ScheduleEvent } from '../../components/ScheduleEventCard';
 import { EmptyState } from '../../components/EmptyState';
@@ -36,16 +37,18 @@ function useCountdown(targetDate: Date | null): string | null {
 export default function ScheduleScreen() {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const { role } = useAuthStore();
+  const { role, weddingId } = useAuthStore();
+  const { config } = useWeddingStore();
 
   useEffect(() => {
-    const q = query(collection(db, 'schedule'), orderBy('order', 'asc'));
+    if (!weddingId) return;
+    const q = query(scheduleCol(weddingId), orderBy('order', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ScheduleEvent)));
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [weddingId]);
 
   const now = Date.now();
   const nextEvent =
@@ -60,6 +63,10 @@ export default function ScheduleScreen() {
       </ScreenWrapper>
     );
   }
+
+  const headingSub = config
+    ? `${config.venueShort} · ${config.location}`
+    : 'Hard Rock · Punta Cana · Dec 2–5';
 
   return (
     <ScreenWrapper>
@@ -78,7 +85,7 @@ export default function ScheduleScreen() {
                 in paradise
               </Text>
             </Text>
-            <Text style={styles.sub}>Hard Rock · Punta Cana · Dec 2–5</Text>
+            <Text style={styles.sub}>{headingSub}</Text>
           </View>
         }
         renderItem={({ item }) => {

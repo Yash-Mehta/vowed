@@ -1,36 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function isAuth() { return request.auth != null; }
-    function isHost() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'host';
+
+    function isMember(weddingId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/weddings/$(weddingId)/members/$(request.auth.uid));
     }
+
+    function isHost(weddingId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/weddings/$(weddingId)/members/$(request.auth.uid)).data.role == 'host';
+    }
+
     function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
 
-    match /config/{doc} {
+    // ── Invite code index — read-only for lookup ──────────────────────────────
+    match /weddingsByCode/{code} {
       allow read: if true;
       allow write: if false;
     }
+
+    // ── User index (maps uid → weddingIds) ────────────────────────────────────
     match /users/{uid} {
       allow read: if isAuth();
-      allow create, update: if isOwner(uid) || isHost();
-      allow delete: if isHost();
+      allow create, update: if isOwner(uid);
+      allow delete: if false;
     }
-    match /posts/{postId} {
-      allow read: if isAuth();
-      allow create, update, delete: if isHost();
-      match /comments/{commentId} {
-        allow read: if isAuth();
-        allow create: if isAuth();
-        allow delete: if isOwner(resource.data.authorId);
+
+    // ── Wedding document (config) ─────────────────────────────────────────────
+    match /weddings/{weddingId} {
+      allow read: if isMember(weddingId);
+      allow create: if isAuth();
+      allow update: if isHost(weddingId);
+      allow delete: if false;
+
+      // ── Members ─────────────────────────────────────────────────────────────
+      match /members/{uid} {
+        allow read: if isMember(weddingId);
+        allow create: if isAuth() && isOwner(uid);
+        allow update: if isOwner(uid) || isHost(weddingId);
+        allow delete: if isHost(weddingId);
       }
-      match /likes/{uid} {
-        allow read, write: if isOwner(uid);
+
+      // ── Posts ────────────────────────────────────────────────────────────────
+      match /posts/{postId} {
+        allow read: if isMember(weddingId);
+        allow create, update, delete: if isHost(weddingId);
+
+        match /comments/{commentId} {
+          allow read: if isMember(weddingId);
+          allow create: if isMember(weddingId);
+          allow delete: if isOwner(resource.data.authorId) || isHost(weddingId);
+        }
+
+        match /likes/{uid} {
+          allow read, write: if isOwner(uid) && isMember(weddingId);
+        }
       }
-    }
-    match /schedule/{eventId} {
-      allow read: if isAuth();
-      allow write: if isHost();
+
+      // ── Schedule ─────────────────────────────────────────────────────────────
+      match /schedule/{eventId} {
+        allow read: if isMember(weddingId);
+        allow write: if isHost(weddingId);
+      }
     }
   }
 }

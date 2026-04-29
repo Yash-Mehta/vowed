@@ -3,11 +3,12 @@ import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
+import { useWeddingStore } from '../../store/weddingStore';
 import { theme } from '../../constants/theme';
-import { WEDDING } from '../../constants/WEDDING';
 
 export default function TabLayout() {
   const { role } = useAuthStore();
+  const { config } = useWeddingStore();
   const isHost = role === 'host';
 
   return (
@@ -68,9 +69,7 @@ export default function TabLayout() {
         name="manage"
         options={{
           title: isHost ? 'Admin' : 'Registry',
-          href: isHost
-            ? '/(tabs)/manage'
-            : undefined,
+          href: isHost ? '/(tabs)/manage' : undefined,
           tabBarIcon: ({ color, size }) =>
             isHost ? (
               <Ionicons name="shield-outline" size={size} color={color} />
@@ -79,11 +78,11 @@ export default function TabLayout() {
             ),
         }}
         listeners={
-          !isHost
+          !isHost && config?.registryUrl
             ? {
                 tabPress: (e) => {
                   e.preventDefault();
-                  WebBrowser.openBrowserAsync(WEDDING.registryUrl);
+                  WebBrowser.openBrowserAsync(config.registryUrl!);
                 },
               }
             : undefined

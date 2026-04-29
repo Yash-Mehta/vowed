@@ -12,7 +12,10 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerForPushNotifications(uid: string): Promise<void> {
+export async function registerForPushNotifications(
+  uid: string,
+  weddingId: string
+): Promise<void> {
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {
@@ -25,9 +28,7 @@ export async function registerForPushNotifications(uid: string): Promise<void> {
   try {
     token = (await Notifications.getExpoPushTokenAsync()).data;
   } catch {
-    // getExpoPushTokenAsync can throw in development when no EAS projectId is configured.
-    // Fail silently rather than crashing the app.
     return;
   }
-  await updateDoc(doc(db, 'users', uid), { fcmToken: token });
+  await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), { fcmToken: token });
 }

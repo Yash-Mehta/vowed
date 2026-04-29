@@ -13,12 +13,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { saveCredentials } from '../../lib/secureAuth';
+import { useAuthStore } from '../../store/authStore';
 import { theme } from '../../constants/theme';
 
 export default function RegisterScreen() {
-  const params = useLocalSearchParams<{ code: string; role: string }>();
+  const params = useLocalSearchParams<{ code: string; role: string; weddingId: string }>();
   const role: 'guest' | 'host' = (Array.isArray(params.role) ? params.role[0] : params.role) === 'host' ? 'host' : 'guest';
-  const code = Array.isArray(params.code) ? params.code[0] : params.code;
+  const weddingId = Array.isArray(params.weddingId) ? params.weddingId[0] : params.weddingId;
+
+  const { setPendingRole, setPendingWeddingId } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,12 +31,14 @@ export default function RegisterScreen() {
     if (!email || !password) return;
     setLoading(true);
     try {
+      // Ensure store has the pending values (in case they navigated back)
+      setPendingRole(role);
+      if (weddingId) setPendingWeddingId(weddingId);
       await createUserWithEmailAndPassword(auth, email, password);
       await saveCredentials(email, password);
-      router.replace({ pathname: '/(auth)/profile-setup', params: { role: role ?? 'guest' } });
+      // _layout.tsx will navigate to profile-setup once firebaseUser is set
     } catch (e: any) {
       Alert.alert('Error', e.message);
-    } finally {
       setLoading(false);
     }
   }
@@ -61,11 +66,7 @@ export default function RegisterScreen() {
         placeholderTextColor={theme.colors.ink4}
         secureTextEntry
       />
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleRegister}
-        disabled={loading}
-        activeOpacity={0.85}>
+      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading} activeOpacity={0.85}>
         <Text style={styles.buttonText}>{loading ? 'Creating account…' : 'Continue'}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.back} onPress={() => router.back()}>
@@ -80,33 +81,13 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 32, backgroundColor: theme.colors.bg },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 32,
-    color: theme.colors.ink,
-    fontFamily: theme.fonts.serif,
-  },
+  title: { fontSize: 28, fontWeight: '700', marginBottom: 32, color: theme.colors.ink, fontFamily: theme.fonts.serif },
   input: {
-    borderWidth: 1,
-    borderColor: theme.colors.lineStrong,
-    borderRadius: theme.radii.md,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
-    letterSpacing: 0,
-    marginBottom: 12,
-    color: theme.colors.ink,
-    backgroundColor: theme.colors.card,
-    fontFamily: theme.fonts.sans,
+    borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: theme.radii.md,
+    paddingHorizontal: 16, paddingVertical: 16, fontSize: 16, marginBottom: 12,
+    color: theme.colors.ink, backgroundColor: theme.colors.card, fontFamily: theme.fonts.sans,
   },
-  button: {
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radii.pill,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
+  button: { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill, padding: 16, alignItems: 'center', marginTop: 8 },
   buttonText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
   back: { padding: 16, alignItems: 'center' },
   backText: { color: theme.colors.ink3, fontSize: 14, fontFamily: theme.fonts.sans },

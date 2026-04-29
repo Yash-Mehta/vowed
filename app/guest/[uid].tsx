@@ -4,24 +4,26 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { UserDoc } from '../../lib/firestore';
+import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
 export default function GuestProfileScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
+  const { weddingId } = useAuthStore();
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    if (!uid) return;
-    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+    if (!uid || !weddingId) return;
+    const unsub = onSnapshot(doc(db, 'weddings', weddingId, 'members', uid), (snap) => {
       setUser(snap.exists() ? (snap.data() as UserDoc) : null);
       setLoading(false);
     });
     return unsub;
-  }, [uid]);
+  }, [uid, weddingId]);
 
   if (loading) {
     return (

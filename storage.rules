@@ -8,7 +8,7 @@ service firebase.storage {
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
-    match /posts/{fileName} {
+    match /weddings/{weddingId}/posts/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && request.resource.size < 20 * 1024 * 1024

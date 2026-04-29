@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { FlatList, TouchableOpacity, Text, View, StyleSheet, ActivityIndicator } from 'react-native';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { getDocs } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '../../store/authStore';
+import { membersCol, UserDoc } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
-import { UserDoc } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 interface GuestItem extends UserDoc {
@@ -16,16 +16,18 @@ interface GuestItem extends UserDoc {
 export default function GuestsScreen() {
   const [guests, setGuests] = useState<GuestItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { weddingId } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
+    if (!weddingId) return;
     async function load() {
-      const snap = await getDocs(collection(db, 'users'));
+      const snap = await getDocs(membersCol(weddingId!));
       setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
       setLoading(false);
     }
     load();
-  }, []);
+  }, [weddingId]);
 
   if (loading) {
     return (

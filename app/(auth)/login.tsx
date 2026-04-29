@@ -13,7 +13,6 @@ import {
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { getUser } from '../../lib/firestore';
 import { saveCredentials, clearCredentials } from '../../lib/secureAuth';
 import { theme } from '../../constants/theme';
 
@@ -28,14 +27,13 @@ export default function LoginScreen() {
     if (!email || !password) return;
     setLoading(true);
     try {
-      const { user } = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       if (rememberMe) {
         await saveCredentials(email, password);
       } else {
         await clearCredentials();
       }
-      const doc = await getUser(user.uid);
-      router.replace(doc?.displayName ? '/(tabs)/feed' : '/(auth)/profile-setup');
+      // _layout.tsx handles routing once firebaseUser is set
     } catch (e: any) {
       Alert.alert(
         'Sign in failed',

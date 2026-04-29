@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   FlatList,
   View,
@@ -8,11 +8,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  collection,
   query,
   orderBy,
   onSnapshot,
@@ -24,6 +22,8 @@ import {
 import { useRouter } from 'expo-router';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
+import { useWeddingStore } from '../../store/weddingStore';
+import { postsCol } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { PostCard, Post } from '../../components/PostCard';
 import { AnnouncementCard } from '../../components/AnnouncementCard';
@@ -31,76 +31,77 @@ import { CommentSheet } from '../../components/CommentSheet';
 import { EmptyState } from '../../components/EmptyState';
 import { Sprig } from '../../components/Sprig';
 import { theme } from '../../constants/theme';
-import { WEDDING, getDaysUntilWedding, getCountdownParts } from '../../constants/WEDDING';
 
 export default function FeedScreen() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activePostId, setActivePostId] = useState<string | null>(null);
-  const { firebaseUser, role } = useAuthStore();
+  const { firebaseUser, role, weddingId } = useAuthStore();
+  const { config, getDaysUntilWedding, getCountdownParts } = useWeddingStore();
   const router = useRouter();
+
   const daysAway = getDaysUntilWedding();
   const { days: cdDays, hours: cdHours, mins: cdMins } = getCountdownParts();
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    if (!weddingId) return;
+    const q = query(postsCol(weddingId), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [weddingId]);
 
-  // Fetch liked state for current user per post
   useEffect(() => {
-    if (!firebaseUser || posts.length === 0) return;
+    if (!firebaseUser || !weddingId || posts.length === 0) return;
     const uid = firebaseUser.uid;
     const unsubscribers: (() => void)[] = [];
     posts.forEach((post) => {
-      const likeRef = doc(db, 'posts', post.id, 'likes', uid);
+      const likeRef = doc(db, 'weddings', weddingId, 'posts', post.id, 'likes', uid);
       const unsub = onSnapshot(likeRef, (snap) => {
         setLikedIds((prev) => {
           const next = new Set(prev);
-          if (snap.exists()) {
-            next.add(post.id);
-          } else {
-            next.delete(post.id);
-          }
+          if (snap.exists()) next.add(post.id);
+          else next.delete(post.id);
           return next;
         });
       });
       unsubscribers.push(unsub);
     });
     return () => unsubscribers.forEach((u) => u());
-  }, [posts.length, firebaseUser?.uid]);
+  }, [posts.length, firebaseUser?.uid, weddingId]);
 
   const handleLike = useCallback(
     async (post: Post) => {
-      if (!firebaseUser) return;
+      if (!firebaseUser || !weddingId) return;
       const uid = firebaseUser.uid;
-      const likeRef = doc(db, 'posts', post.id, 'likes', uid);
+      const likeRef = doc(db, 'weddings', weddingId, 'posts', post.id, 'likes', uid);
       if (likedIds.has(post.id)) {
         await deleteDoc(likeRef);
       } else {
         await setDoc(likeRef, { likedAt: new Date() });
       }
     },
-    [firebaseUser, likedIds]
+    [firebaseUser, likedIds, weddingId]
   );
 
   async function handleDelete(post: Post) {
+    if (!weddingId) return;
     Alert.alert('Delete post', 'This will permanently remove the post.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
-        onPress: () => deleteDoc(doc(db, 'posts', post.id)),
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteDoc(doc(db, 'weddings', weddingId, 'posts', post.id)),
       },
     ]);
   }
 
   async function handleTogglePin(post: Post) {
-    await updateDoc(doc(db, 'posts', post.id), { pinned: !post.pinned });
+    if (!weddingId) return;
+    await updateDoc(doc(db, 'weddings', weddingId, 'posts', post.id), { pinned: !post.pinned });
   }
 
   if (loading) {
@@ -111,6 +112,11 @@ export default function FeedScreen() {
     );
   }
 
+  const coupleName = config?.coupleName ?? 'Our Day';
+  const countdownSub = config
+    ? `${config.dateStamp} · ${config.venueShort}`
+    : 'Sat · Dec 5, 2026 · Hard Rock Punta Cana';
+
   return (
     <ScreenWrapper>
       <FlatList
@@ -119,22 +125,20 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            {/* Header row */}
             <View style={styles.headerRow}>
               <View style={styles.headerLeft}>
                 <View style={styles.headerLogoCircle}>
-                    <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="cover" />
-                  </View>
+                  <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="cover" />
+                </View>
                 <View style={{ marginLeft: 10 }}>
                   <Text style={styles.headerTitle}>Our Day</Text>
                   <Text style={styles.headerSub}>
-                    {role === 'host' ? '✦ Hosting view' : WEDDING.coupleName}
+                    {role === 'host' ? '✦ Hosting view' : coupleName}
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Countdown banner */}
             <LinearGradient
               colors={[theme.colors.countdownStart, theme.colors.countdownEnd]}
               start={{ x: 0, y: 0 }}
@@ -149,7 +153,7 @@ export default function FeedScreen() {
                   {daysAway} days till{' '}
                   <Text style={{ fontStyle: 'italic' }}>I do</Text>
                 </Text>
-                <Text style={styles.countdownSub}>Sat · Dec 5, 2026 · 6:00pm · Hard Rock Punta Cana</Text>
+                <Text style={styles.countdownSub}>{countdownSub}</Text>
               </View>
               <View style={styles.countdownTiles}>
                 {[
@@ -195,7 +199,6 @@ export default function FeedScreen() {
         contentContainerStyle={{ paddingVertical: 12, paddingBottom: 100 }}
       />
 
-      {/* Host compose FAB */}
       {role === 'host' && (
         <TouchableOpacity
           style={styles.fab}

@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
-import { storage, db } from '../lib/firebase';
+import { storage } from '../lib/firebase';
 import { useAuthStore } from '../store/authStore';
 import { postsCol } from '../lib/firestore';
 import { ScreenWrapper } from '../components/ScreenWrapper';
@@ -23,7 +23,7 @@ import { theme } from '../constants/theme';
 
 export default function ComposeScreen() {
   const router = useRouter();
-  const { firebaseUser, userDoc } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId } = useAuthStore();
   const [caption, setCaption] = useState('');
   const [imageURI, setImageURI] = useState<string | null>(null);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
@@ -42,7 +42,7 @@ export default function ComposeScreen() {
   }
 
   async function handlePost() {
-    if (!firebaseUser || !userDoc) return;
+    if (!firebaseUser || !userDoc || !weddingId) return;
     if (!caption.trim() && !imageURI) {
       Alert.alert('Nothing to post', 'Add a caption or photo.');
       return;
@@ -52,11 +52,11 @@ export default function ComposeScreen() {
       let photoURL: string | null = null;
       if (imageURI && !isAnnouncement) {
         const blob = await (await fetch(imageURI)).blob();
-        const storageRef = ref(storage, `posts/${firebaseUser.uid}-${Date.now()}`);
+        const storageRef = ref(storage, `weddings/${weddingId}/posts/${firebaseUser.uid}-${Date.now()}`);
         await uploadBytes(storageRef, blob);
         photoURL = await getDownloadURL(storageRef);
       }
-      await addDoc(postsCol, {
+      await addDoc(postsCol(weddingId), {
         type: isAnnouncement ? 'announcement' : 'photo',
         caption: caption.trim(),
         photoURL,
@@ -100,7 +100,6 @@ export default function ComposeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Type toggle */}
         <View style={styles.toggleRow}>
           <TouchableOpacity
             style={[styles.typeBtn, !isAnnouncement && styles.typeBtnActive]}
@@ -120,7 +119,6 @@ export default function ComposeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Photo picker */}
         {!isAnnouncement && (
           <TouchableOpacity style={styles.photoPicker} onPress={pickImage} activeOpacity={0.8}>
             {imageURI ? (
@@ -134,20 +132,16 @@ export default function ComposeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Caption */}
         <TextInput
           style={[styles.captionInput, isAnnouncement && styles.captionInputTall]}
           value={caption}
           onChangeText={setCaption}
-          placeholder={
-            isAnnouncement ? 'Write your announcement…' : 'Write a caption…'
-          }
+          placeholder={isAnnouncement ? 'Write your announcement…' : 'Write a caption…'}
           placeholderTextColor={theme.colors.ink4}
           multiline
           autoFocus
         />
 
-        {/* Pinned toggle */}
         <View style={styles.switchRow}>
           <View>
             <Text style={styles.switchLabel}>Pin to top of feed</Text>

@@ -15,14 +15,14 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
 import { clearCredentials } from '../../lib/secureAuth';
-import { updateUser } from '../../lib/firestore';
+import { updateMember } from '../../lib/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
-  const { firebaseUser, userDoc, setUserDoc } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId, setUserDoc } = useAuthStore();
   const [displayName, setDisplayName] = useState(userDoc?.displayName ?? '');
   const [howTheyKnow, setHowTheyKnow] = useState(userDoc?.howTheyKnow ?? '');
   const [saving, setSaving] = useState(false);
@@ -61,7 +61,7 @@ export default function ProfileScreen() {
       const storageRef = ref(storage, `avatars/${firebaseUser.uid}.jpg`);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const url = await getDownloadURL(storageRef);
-      await updateUser(firebaseUser.uid, { photoURL: url });
+      if (weddingId) await updateMember(weddingId, firebaseUser.uid, { photoURL: url });
       setUserDoc({ ...userDoc!, photoURL: url });
     } catch (e) {
       Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
@@ -74,8 +74,9 @@ export default function ProfileScreen() {
     if (!firebaseUser || !displayName.trim()) return;
     setSaving(true);
     try {
+      if (!weddingId) return;
       const update = { displayName: displayName.trim(), howTheyKnow: howTheyKnow.trim() };
-      await updateUser(firebaseUser.uid, update);
+      await updateMember(weddingId, firebaseUser.uid, update);
       setUserDoc({ ...userDoc!, ...update });
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (e: any) {

@@ -41,31 +41,33 @@ interface Props {
 export function CommentSheet({ postId, onClose }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState('');
-  const { firebaseUser, userDoc } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId } = useAuthStore();
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    if (!postId) return;
-    const q = query(collection(db, 'posts', postId, 'comments'), orderBy('createdAt', 'asc'));
+    if (!postId || !weddingId) return;
+    const q = query(
+      collection(db, 'weddings', weddingId, 'posts', postId, 'comments'),
+      orderBy('createdAt', 'asc')
+    );
     const unsub = onSnapshot(q, (snap) => {
       setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Comment)));
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     });
     return unsub;
-  }, [postId]);
+  }, [postId, weddingId]);
 
   async function handleSend() {
-    if (!text.trim() || !postId || !firebaseUser || !userDoc) return;
+    if (!text.trim() || !postId || !firebaseUser || !userDoc || !weddingId) return;
     const trimmed = text.trim();
     setText('');
-    await addDoc(collection(db, 'posts', postId, 'comments'), {
+    await addDoc(collection(db, 'weddings', weddingId, 'posts', postId, 'comments'), {
       authorId: firebaseUser.uid,
       authorName: userDoc.displayName,
       authorPhotoURL: userDoc.photoURL,
       text: trimmed,
       createdAt: serverTimestamp(),
     });
-    // commentCount is incremented by the onCommentCreated Cloud Function
   }
 
   return (

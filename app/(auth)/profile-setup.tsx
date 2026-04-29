@@ -14,12 +14,13 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createUser } from '../../lib/firestore';
+import { createMember, createUserIndex } from '../../lib/firestore';
+import { saveWeddingId } from '../../lib/secureAuth';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
-  const { pendingRole: role, setUserDoc } = useAuthStore();
+  const { pendingRole: role, pendingWeddingId, setUserDoc, setWeddingId } = useAuthStore();
   const [displayName, setDisplayName] = useState('');
   const [howTheyKnow, setHowTheyKnow] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export default function ProfileSetupScreen() {
     const response = await fetch(compressed.uri);
     const blob = await response.blob();
     const storageRef = ref(storage, `avatars/${uid}.jpg`);
-    await uploadBytes(storageRef, blob);
+    await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
     return getDownloadURL(storageRef);
   }
 
@@ -63,20 +64,27 @@ export default function ProfileSetupScreen() {
       Alert.alert('Required', 'Please fill in your name and how you know the couple.');
       return;
     }
+    if (!pendingWeddingId) {
+      Alert.alert('Error', 'Wedding not found. Please go back and try your invite code again.');
+      return;
+    }
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     setLoading(true);
     try {
       let photoURL: string | null = null;
       if (avatarUri) photoURL = await uploadAvatar(uid, avatarUri);
-      const doc = {
+      const memberData = {
         displayName: displayName.trim(),
         howTheyKnow: howTheyKnow.trim(),
         photoURL,
         role,
       };
-      await createUser(uid, doc);
-      setUserDoc({ ...doc, fcmToken: null, createdAt: null });
+      await createMember(pendingWeddingId, uid, memberData);
+      await createUserIndex(uid, pendingWeddingId);
+      await saveWeddingId(pendingWeddingId);
+      setWeddingId(pendingWeddingId);
+      setUserDoc({ ...memberData, fcmToken: null, createdAt: null });
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -119,11 +127,7 @@ export default function ProfileSetupScreen() {
       />
       <Text style={styles.charCount}>{howTheyKnow.length}/100</Text>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleComplete}
-        disabled={loading}
-        activeOpacity={0.85}>
+      <TouchableOpacity style={styles.button} onPress={handleComplete} disabled={loading} activeOpacity={0.85}>
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -132,60 +136,22 @@ export default function ProfileSetupScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 32, paddingTop: 80 },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 32,
-    color: theme.colors.ink,
-    fontFamily: theme.fonts.serif,
-  },
+  title: { fontSize: 28, fontWeight: '700', marginBottom: 32, color: theme.colors.ink, fontFamily: theme.fonts.serif },
   avatarContainer: { alignSelf: 'center', marginBottom: 24, alignItems: 'center' },
   avatar: { width: 100, height: 100, borderRadius: 50 },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: theme.colors.surface2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: theme.colors.line,
+    width: 100, height: 100, borderRadius: 50, backgroundColor: theme.colors.surface2,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 0.5, borderColor: theme.colors.line,
   },
-  avatarPlaceholderText: {
-    fontSize: 12,
-    color: theme.colors.ink3,
-    fontFamily: theme.fonts.serif,
-  },
-  changePhoto: {
-    fontSize: 13,
-    color: theme.colors.accentSoft,
-    marginTop: 8,
-    fontFamily: theme.fonts.sans,
-  },
+  avatarPlaceholderText: { fontSize: 12, color: theme.colors.ink3, fontFamily: theme.fonts.serif },
+  changePhoto: { fontSize: 13, color: theme.colors.accentSoft, marginTop: 8, fontFamily: theme.fonts.sans },
   input: {
-    borderWidth: 1,
-    borderColor: theme.colors.lineStrong,
-    borderRadius: theme.radii.md,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 12,
-    backgroundColor: theme.colors.card,
-    fontFamily: theme.fonts.sans,
-    color: theme.colors.ink,
+    borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: theme.radii.md,
+    padding: 16, fontSize: 16, marginBottom: 12, backgroundColor: theme.colors.card,
+    fontFamily: theme.fonts.sans, color: theme.colors.ink,
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  charCount: {
-    fontSize: 12,
-    color: theme.colors.ink4,
-    textAlign: 'right',
-    marginBottom: 16,
-    fontFamily: theme.fonts.sans,
-  },
-  button: {
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radii.pill,
-    padding: 16,
-    alignItems: 'center',
-  },
+  charCount: { fontSize: 12, color: theme.colors.ink4, textAlign: 'right', marginBottom: 16, fontFamily: theme.fonts.sans },
+  button: { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill, padding: 16, alignItems: 'center' },
   buttonText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
 });

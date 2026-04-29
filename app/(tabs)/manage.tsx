@@ -24,7 +24,8 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { UserDoc } from '../../lib/firestore';
+import { UserDoc, membersCol, scheduleCol } from '../../lib/firestore';
+import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { GuestRow } from '../../components/GuestRow';
 import { theme } from '../../constants/theme';
@@ -98,6 +99,7 @@ export default function ManageScreen() {
   const [events, setEvents] = useState<ScheduleItem[]>([]);
   const [loadingGuests, setLoadingGuests] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
+  const { weddingId } = useAuthStore();
 
   // Add form
   const [newFields, setNewFields] = useState(BLANK_EVENT);
@@ -109,49 +111,68 @@ export default function ManageScreen() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
+    if (!weddingId) return;
+    const unsub = onSnapshot(membersCol(weddingId), (snap) => {
       setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
       setLoadingGuests(false);
     });
     return unsub;
-  }, []);
+  }, [weddingId]);
 
   useEffect(() => {
-    const q = query(collection(db, 'schedule'), orderBy('order', 'asc'));
+    if (!weddingId) return;
+    const q = query(scheduleCol(weddingId), orderBy('order', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ScheduleItem)));
       setLoadingSchedule(false);
     });
     return unsub;
-  }, []);
+  }, [weddingId]);
 
-  async function handlePromote(uid: string) { await updateDoc(doc(db, 'users', uid), { role: 'host' }); }
-  async function handleDemote(uid: string) { await updateDoc(doc(db, 'users', uid), { role: 'guest' }); }
-  async function handleRemove(uid: string) { await deleteDoc(doc(db, 'users', uid)); }
+  async function handlePromote(uid: string) {
+    if (!weddingId) return;
+    await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), { role: 'host' });
+  }
+  async function handleDemote(uid: string) {
+    if (!weddingId) return;
+    await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), { role: 'guest' });
+  }
+  async function handleRemove(uid: string) {
+    if (!weddingId) return;
+    await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
+  }
 
   async function moveEvent(index: number, direction: -1 | 1) {
+    if (!weddingId) return;
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= events.length) return;
     const reordered = [...events];
     [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
     setEvents(reordered);
     const batch = writeBatch(db);
-    reordered.forEach((item, i) => batch.update(doc(db, 'schedule', item.id), { order: i }));
+    reordered.forEach((item, i) =>
+      batch.update(doc(db, 'weddings', weddingId, 'schedule', item.id), { order: i })
+    );
     await batch.commit();
   }
 
   async function handleDeleteEvent(id: string) {
+    if (!weddingId) return;
     Alert.alert('Delete event', 'Remove this event?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteDoc(doc(db, 'schedule', id)) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteDoc(doc(db, 'weddings', weddingId, 'schedule', id)),
+      },
     ]);
   }
 
   async function handleAddEvent() {
-    if (!newFields.title.trim() || !newFields.location.trim()) return;
+    if (!weddingId || !newFields.title.trim() || !newFields.location.trim()) return;
     setAddingEvent(true);
     const startTime = parseTimeToTimestamp(newFields.time, newFields.day);
-    await addDoc(collection(db, 'schedule'), {
+    await addDoc(scheduleCol(weddingId), {
       title: newFields.title.trim(),
       location: newFields.location.trim(),
       description: newFields.description.trim() || null,
@@ -183,11 +204,11 @@ export default function ManageScreen() {
   }
 
   async function handleSaveEdit() {
-    if (!editingId || !editFields.title.trim() || !editFields.location.trim()) return;
+    if (!weddingId || !editingId || !editFields.title.trim() || !editFields.location.trim()) return;
     setSavingEdit(true);
     try {
       const startTime = parseTimeToTimestamp(editFields.time, editFields.day);
-      await updateDoc(doc(db, 'schedule', editingId), {
+      await updateDoc(doc(db, 'weddings', weddingId, 'schedule', editingId), {
         title: editFields.title.trim(),
         location: editFields.location.trim(),
         description: editFields.description.trim() || null,
