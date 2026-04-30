@@ -48,7 +48,7 @@ export default function RootLayout() {
         duration: 900,
         useNativeDriver: true,
       }).start(() => setShowOverlay(false));
-    }, 500);
+    }, 900);
   }
 
   const [fontsLoaded] = useFonts({
