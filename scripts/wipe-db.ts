@@ -48,6 +48,21 @@ async function deleteStorageFolder(prefix: string) {
   }
 }
 
+async function deleteAuthUsers() {
+  let deleted = 0;
+  let pageToken: string | undefined;
+  while (true) {
+    const result = await admin.auth().listUsers(1000, pageToken);
+    if (!result.users.length) break;
+    const uids = result.users.map((u) => u.uid);
+    await admin.auth().deleteUsers(uids);
+    deleted += uids.length;
+    pageToken = result.pageToken;
+    if (!pageToken) break;
+  }
+  if (deleted) console.log(`  deleted ${deleted} auth users`);
+}
+
 async function main() {
   console.log('Wiping database...\n');
 
@@ -66,6 +81,9 @@ async function main() {
   // Storage
   await deleteStorageFolder('weddings/');
   await deleteStorageFolder('avatars/');
+
+  // Auth
+  await deleteAuthUsers();
 
   console.log('\nDone. Database is clean.');
   process.exit(0);
