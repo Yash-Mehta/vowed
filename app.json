@@ -72,13 +72,12 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1",
-            "extraPodfileConfig": "ENV['RCT_NEW_ARCH_ENABLED'] = '0'"
+            "deploymentTarget": "15.1"
           }
         }
       ]
     ],
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "experiments": {
       "typedRoutes": true
     },
