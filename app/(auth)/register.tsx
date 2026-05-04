@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { saveCredentials } from '../../lib/secureAuth';
 import { useAuthStore } from '../../store/authStore';
@@ -34,8 +34,11 @@ export default function RegisterScreen() {
       // Ensure store has the pending values (in case they navigated back)
       setPendingRole(role);
       if (weddingId) setPendingWeddingId(weddingId);
+      let isNewUser = false;
       try {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(cred.user);
+        isNewUser = true;
       } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
           await signInWithEmailAndPassword(auth, email, password);
@@ -44,7 +47,10 @@ export default function RegisterScreen() {
         }
       }
       await saveCredentials(email, password);
-      // _layout.tsx will navigate to profile-setup once firebaseUser is set
+      if (isNewUser) {
+        router.replace('/(auth)/verify-email');
+      }
+      // For existing users, _layout.tsx handles routing
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {

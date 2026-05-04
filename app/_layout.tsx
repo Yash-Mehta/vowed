@@ -69,6 +69,14 @@ export default function RootLayout() {
       setLoading(true);
       setFirebaseUser(user);
       if (user) {
+        // Skip Firestore lookups for unverified users — rules deny access
+        if (!user.emailVerified) {
+          setWeddingId(null);
+          setUserDoc(null);
+          setLoading(false);
+          return;
+        }
+
         // Resolve weddingId: SecureStore first, then /users index
         let wId = await getWeddingId();
         if (!wId) {
@@ -111,15 +119,20 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
 
+    const emailVerified = firebaseUser?.emailVerified ?? true;
+    const onVerifyScreen = segments[1] === 'verify-email';
+
     if (!firebaseUser && !inAuth && !inOnboarding) {
       router.replace('/');
-    } else if (firebaseUser && inAuth) {
+    } else if (firebaseUser && !emailVerified && !onVerifyScreen) {
+      router.replace('/(auth)/verify-email');
+    } else if (firebaseUser && inAuth && emailVerified) {
       if (isProfileComplete) {
         playEntryTransition(() => router.replace('/(tabs)/feed'));
       } else if (segments[1] !== 'profile-setup') {
         router.replace('/(auth)/profile-setup');
       }
-    } else if (firebaseUser && !inOnboarding && !isProfileComplete) {
+    } else if (firebaseUser && !inOnboarding && emailVerified && !isProfileComplete) {
       router.replace('/(auth)/profile-setup');
     }
   }, [isLoading, fontsLoaded, firebaseUser, isProfileComplete, segments]);
