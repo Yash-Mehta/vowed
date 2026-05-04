@@ -124,7 +124,7 @@ export default function RootLayout() {
 
     if (!firebaseUser && !inAuth && !inOnboarding) {
       router.replace('/');
-    } else if (firebaseUser && !emailVerified && !onVerifyScreen) {
+    } else if (firebaseUser && !emailVerified && !onVerifyScreen && !inOnboarding) {
       router.replace('/(auth)/verify-email');
     } else if (firebaseUser && inAuth && emailVerified) {
       if (isProfileComplete) {

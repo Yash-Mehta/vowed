@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,13 @@ export default function VerifyEmailScreen() {
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user && !user.emailVerified) {
+      sendEmailVerification(user).catch(() => {});
+    }
+  }, []);
 
   async function handleCheckVerified() {
     const user = auth.currentUser;
