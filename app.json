@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ourday.wedding",
-      "buildNumber": "4",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Our Day uses your camera so you can share photos with your wedding party.",
         "NSPhotoLibraryUsageDescription": "Our Day accesses your photos so you can share them with your wedding party.",
@@ -66,7 +66,16 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1",
+            "extraPodfileConfig": "ENV['RCT_NEW_ARCH_ENABLED'] = '0'"
+          }
+        }
+      ]
     ],
     "newArchEnabled": false,
     "experiments": {
