@@ -114,6 +114,13 @@ export default function FeedScreen() {
     );
   }
 
+  async function handleEditCaption(post: Post, caption: string) {
+    if (!weddingId) return;
+    await updateDoc(doc(db, 'weddings', weddingId, 'posts', post.id), { caption }).catch(() =>
+      Alert.alert('Error', 'Could not update announcement.')
+    );
+  }
+
   if (loading) {
     return (
       <ScreenWrapper>
@@ -184,7 +191,13 @@ export default function FeedScreen() {
         }
         renderItem={({ item }) =>
           item.type === 'announcement' ? (
-            <AnnouncementCard post={item} />
+            <AnnouncementCard
+              post={item}
+              isHost={role === 'host'}
+              onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
+              onDelete={role === 'host' ? () => handleDelete(item) : undefined}
+              onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
+            />
           ) : (
             <PostCard
               post={item}
