@@ -347,8 +347,10 @@ module.exports = function withCxx20(config) {
     dst = File.join(folly_coro_dir, 'Coroutine.h')
     FileUtils.cp(src, dst)
 
-    # Fix ReanimatedMountHook: older reanimated used 'double mountTime' but
+    # Fix ReanimatedMountHook: registry reanimated 3.16.7 uses 'double' but
     # RN 0.81's UIManagerMountHook uses HighResTimeStamp — patch both files.
+    # The registry .h has 'double mountTime) noexcept override'
+    # The registry .cpp has 'double) noexcept {' (unnamed param)
     [
       File.join(installer.sandbox.root, 'Headers/Private/RNReanimated/reanimated/Fabric/ReanimatedMountHook.h'),
       File.join(__dir__, '..', 'node_modules', 'react-native-reanimated', 'Common', 'cpp', 'reanimated', 'Fabric', 'ReanimatedMountHook.h'),
@@ -356,10 +358,12 @@ module.exports = function withCxx20(config) {
     ].each do |f|
       next unless File.exist?(f)
       content = File.read(f)
-      if content.include?('double mountTime') || content.include?('double /*mountTime*/')
-        content = content.gsub('double mountTime', 'HighResTimeStamp mountTime')
-                         .gsub('double /*mountTime*/', 'HighResTimeStamp /*mountTime*/')
-        File.write(f, content)
+      patched = content
+        .gsub('double mountTime) noexcept override', 'HighResTimeStamp mountTime) noexcept override')
+        .gsub('double /*mountTime*/) noexcept', 'HighResTimeStamp /*mountTime*/) noexcept')
+        .gsub('double) noexcept', 'HighResTimeStamp) noexcept')
+      if patched != content
+        File.write(f, patched)
         puts "patched #{File.basename(f)}: double -> HighResTimeStamp"
       end
     end
