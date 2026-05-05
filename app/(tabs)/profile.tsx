@@ -34,7 +34,14 @@ export default function ProfileScreen() {
     Alert.alert('Change photo', undefined, [
       {
         text: 'Camera',
-        onPress: () => openPicker(() => ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 })),
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Camera access needed', 'Please allow camera access in Settings.');
+            return;
+          }
+          openPicker(() => ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 }));
+        },
       },
       {
         text: 'Photo Library',

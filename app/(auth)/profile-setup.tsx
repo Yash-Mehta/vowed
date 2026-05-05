@@ -31,6 +31,11 @@ export default function ProfileSetupScreen() {
       {
         text: 'Camera',
         onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Camera access needed', 'Please allow camera access in Settings.');
+            return;
+          }
           const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
           if (!result.canceled) setAvatarUri(result.assets[0].uri);
         },
