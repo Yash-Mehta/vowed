@@ -1,126 +1,235 @@
-// Run with: npx ts-node scripts/seed.ts
-// Requires GOOGLE_APPLICATION_CREDENTIALS env var pointing to a service account JSON
-// Download from: Firebase Console → Project Settings → Service Accounts → Generate new private key
 import * as admin from 'firebase-admin';
+import * as path from 'path';
 
+const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-  projectId: 'our-day-39d9d',
+  credential: admin.credential.cert(keyPath),
+  storageBucket: 'our-day-39d9d.firebasestorage.app',
 });
 
 const db = admin.firestore();
+const auth = admin.auth();
 
-function ist(isoLocal: string) {
-  // isoLocal is local IST time, e.g. '2026-12-12T16:30:00'
-  // IST = UTC+5:30, so subtract 5h30m to get UTC
-  const [date, time] = isoLocal.split('T');
-  const d = new Date(`${date}T${time}+05:30`);
-  return admin.firestore.Timestamp.fromDate(d);
+const WEDDING_ID  = 'seed-wedding-001';
+const GUEST_CODE  = 'VOWED-GUEST';
+const HOST_CODE   = 'VOWED-HOST';
+const PASSWORD    = 'Vowed123!';
+
+function ts(iso: string) {
+  return admin.firestore.Timestamp.fromDate(new Date(`${iso}+01:00`));
+}
+
+const GUESTS = [
+  { email: 'sophia.lane@example.com',   displayName: 'Sophia Lane',    howTheyKnow: "Olivia's maid of honour",    avatar: 'https://randomuser.me/api/portraits/women/44.jpg' },
+  { email: 'ethan.brooks@example.com',  displayName: 'Ethan Brooks',   howTheyKnow: "James's best man",           avatar: 'https://randomuser.me/api/portraits/men/32.jpg' },
+  { email: 'maya.patel@example.com',    displayName: 'Maya Patel',     howTheyKnow: "Olivia's college roommate",  avatar: 'https://randomuser.me/api/portraits/women/68.jpg' },
+  { email: 'lucas.wright@example.com',  displayName: 'Lucas Wright',   howTheyKnow: "James's childhood friend",   avatar: 'https://randomuser.me/api/portraits/men/55.jpg' },
+  { email: 'chloe.morgan@example.com',  displayName: 'Chloe Morgan',   howTheyKnow: "Olivia's sister",            avatar: 'https://randomuser.me/api/portraits/women/21.jpg' },
+  { email: 'noah.davis@example.com',    displayName: 'Noah Davis',     howTheyKnow: "Work colleague of James's",  avatar: 'https://randomuser.me/api/portraits/men/76.jpg' },
+];
+
+const HOST = {
+  email: 'james.carter@example.com',
+  displayName: 'James Carter',
+  howTheyKnow: 'The groom',
+  avatar: 'https://randomuser.me/api/portraits/men/11.jpg',
+};
+
+const POSTS = [
+  {
+    type: 'photo',
+    caption: 'Welcome to Tuscany! The estate is absolutely breathtaking 🌿',
+    imageURL: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?w=800',
+    pinned: true,
+  },
+  {
+    type: 'photo',
+    caption: 'The chapel has been dressed for tomorrow. We can\'t wait to see you all there 💍',
+    imageURL: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800',
+    pinned: false,
+  },
+  {
+    type: 'announcement',
+    caption: '📍 Shuttle buses depart from the main villa entrance at 4:00 PM sharp. Please don\'t be late!',
+    imageURL: null,
+    pinned: true,
+  },
+  {
+    type: 'photo',
+    caption: 'The vineyard at golden hour ✨ Cocktail hour starts here tonight',
+    imageURL: 'https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=800',
+    pinned: false,
+  },
+  {
+    type: 'photo',
+    caption: 'Table settings are done — every detail has been hand picked with love 🕯️',
+    imageURL: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=800',
+    pinned: false,
+  },
+  {
+    type: 'announcement',
+    caption: '🎶 Tonight\'s playlist has been curated by the couple — expect everything from Dean Martin to Dua Lipa.',
+    imageURL: null,
+    pinned: false,
+  },
+  {
+    type: 'photo',
+    caption: 'Rehearsal dinner was magical. Feeling so grateful for everyone who travelled to be here 🍾',
+    imageURL: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800',
+    pinned: false,
+  },
+  {
+    type: 'photo',
+    caption: 'Morning light over the olive grove. Today is the day! 🌅',
+    imageURL: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800',
+    pinned: false,
+  },
+];
+
+const COMMENTS: Record<number, string[]> = {
+  0: ['So excited to be here!!', 'This place is unreal 😍', 'Pinch me!!'],
+  1: ['Absolutely stunning 😭', 'Going to cry so hard tomorrow'],
+  3: ['Golden hour goals ✨', 'Can\'t wait for cocktail hour!', 'The vines are incredible'],
+  4: ['Every detail is perfect 🕯️', 'So beautiful!'],
+  6: ['Last night was the best dinner I\'ve ever had', 'The speeches were everything 😂❤️'],
+  7: ['TODAY\'S THE DAY!! 🎉', 'So beautiful!! ☀️', 'See you at the aisle! 💍'],
+};
+
+async function createUser(email: string) {
+  try {
+    return await auth.createUser({ email, password: PASSWORD, emailVerified: true });
+  } catch (e: any) {
+    if (e.code === 'auth/email-already-exists') {
+      return await auth.getUserByEmail(email);
+    }
+    throw e;
+  }
 }
 
 async function seed() {
-  // ── Invite code ──────────────────────────────────────────────────────────
-  await db.doc('config/inviteCode').set({ code: 'OURDAY2026' });
-  console.log('✓ Invite code: OURDAY2026');
-  await db.doc('config/hostInviteCode').set({ code: 'HOST-OURDAY' });
-  console.log('✓ Host invite code: HOST-OURDAY');
+  console.log('Seeding database...\n');
 
-  // ── Schedule events ───────────────────────────────────────────────────────
-  const events = [
-    {
-      order: 0,
-      title: 'Sunrise Yoga',
-      location: 'Garden Terrace · Anantara Villa',
-      description: 'Start the wedding weekend with a gentle yoga session by the gardens.',
-      startTime: ist('2026-12-10T06:00:00'),
-      icon: '🌿',
-      color: 'leaf',
-      primary: false,
-      dress: 'Comfortable wear',
-    },
-    {
-      order: 1,
-      title: 'Welcome Cocktails',
-      location: 'Infinity Pool · Anantara Villa',
-      description: 'Sunset drinks and canapés to welcome guests arriving for the weekend.',
-      startTime: ist('2026-12-10T19:00:00'),
-      icon: '🥂',
-      color: 'sky',
-      primary: false,
-      dress: 'Smart casual',
-    },
-    {
-      order: 2,
-      title: 'Mehendi & Haldi',
-      location: 'Garden Terrace · Anantara Villa',
-      description: 'Traditional Mehendi and Haldi ceremonies for the bride and close family.',
-      startTime: ist('2026-12-11T10:00:00'),
-      icon: '✨',
-      color: 'sand',
-      primary: false,
-      dress: 'Traditional / pastels',
-    },
-    {
-      order: 3,
-      title: 'Sangeet Night',
-      location: 'Grand Pavilion · Anantara Villa',
-      description: 'An evening of music, dance, and celebrations with family and friends.',
-      startTime: ist('2026-12-11T19:30:00'),
-      icon: '🎶',
-      color: 'accent',
-      primary: false,
-      dress: 'Festive Indian wear',
-    },
-    {
-      order: 4,
-      title: 'Wedding Ceremony',
-      location: 'Grand Lawn · Anantara Villa · Goa',
-      description: 'The wedding of Yash & Vaani. Please be seated 15 minutes before the ceremony.',
-      startTime: ist('2026-12-12T16:30:00'),
-      icon: '💍',
-      color: 'accent',
-      primary: true,
-      dress: 'Formal — Sherwani / Saree / Lehenga',
-    },
-    {
-      order: 5,
-      title: 'Reception Dinner',
-      location: 'Beach Terrace · Anantara Villa',
-      description: 'Join the newly-weds for dinner, toasts, and dancing under the stars.',
-      startTime: ist('2026-12-12T20:00:00'),
-      icon: '🍾',
-      color: 'sky',
-      primary: false,
-      dress: 'Formal / cocktail',
-    },
-    {
-      order: 6,
-      title: 'Farewell Brunch',
-      location: 'Spice Restaurant · Anantara Villa',
-      description: 'A relaxed farewell brunch before guests head home. Safe travels!',
-      startTime: ist('2026-12-13T10:00:00'),
-      icon: '☀️',
-      color: 'sand',
-      primary: false,
-      dress: 'Casual',
-    },
-  ];
+  // ── Wedding document ──────────────────────────────────────────────────────
+  await db.doc(`weddings/${WEDDING_ID}`).set({
+    coupleName: 'James & Olivia',
+    coupleNameFull: 'James Carter & Olivia Bennett',
+    person1First: 'James',
+    person2First: 'Olivia',
+    monogramInitials: 'J&O',
+    weddingDateISO: '2026-09-05',
+    firstEventDateISO: '2026-09-03',
+    dateStamp: 'September 5, 2026',
+    shortDate: 'Sep 5',
+    displayDate: 'Saturday, 5 September 2026',
+    venue: 'The Rosewood Estate · Tuscany',
+    venueShort: 'Rosewood Estate',
+    location: 'Tuscany, Italy',
+    hashtag: '#CarterBennett2026',
+    registryUrl: 'https://www.amazon.com',
+    accentHex: '#7A4A3F',
+    accentDeepHex: '#5C3329',
+    accentSoftHex: '#C58A7A',
+    accentTintHex: '#F1DFD6',
+    coverPhotoURL: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?w=1200',
+    guestInviteCode: GUEST_CODE,
+    hostInviteCode: HOST_CODE,
+  });
+  console.log('✓ Wedding document');
 
-  const batch = db.batch();
-  for (const event of events) {
-    const ref = db.collection('schedule').doc();
-    batch.set(ref, event);
+  // ── Invite codes ──────────────────────────────────────────────────────────
+  const preview = { coupleName: 'James & Olivia', dateStamp: 'September 5, 2026', venue: 'The Rosewood Estate · Tuscany', monogramInitials: 'J&O' };
+  await db.doc(`weddingsByCode/${GUEST_CODE}`).set({ weddingId: WEDDING_ID, role: 'guest', preview });
+  await db.doc(`weddingsByCode/${HOST_CODE}`).set({ weddingId: WEDDING_ID, role: 'host', preview });
+  console.log('✓ Invite codes');
+
+  // ── Host ──────────────────────────────────────────────────────────────────
+  const hostUser = await createUser(HOST.email);
+  await db.doc(`weddings/${WEDDING_ID}/members/${hostUser.uid}`).set({
+    displayName: HOST.displayName,
+    photoURL: HOST.avatar,
+    howTheyKnow: HOST.howTheyKnow,
+    role: 'host',
+    fcmToken: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.doc(`users/${hostUser.uid}`).set({ weddingIds: [WEDDING_ID], createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  console.log(`✓ Host: ${HOST.displayName} (${HOST.email})`);
+
+  // ── Guests ────────────────────────────────────────────────────────────────
+  const guestUids: string[] = [];
+  for (const g of GUESTS) {
+    const user = await createUser(g.email);
+    guestUids.push(user.uid);
+    await db.doc(`weddings/${WEDDING_ID}/members/${user.uid}`).set({
+      displayName: g.displayName,
+      photoURL: g.avatar,
+      howTheyKnow: g.howTheyKnow,
+      role: 'guest',
+      fcmToken: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.doc(`users/${user.uid}`).set({ weddingIds: [WEDDING_ID], createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    console.log(`✓ Guest: ${g.displayName}`);
   }
-  await batch.commit();
-  console.log(`✓ Seeded ${events.length} schedule events`);
 
-  console.log('\nDone! Your Firebase project is ready.');
-  console.log('Invite code: OURDAY2026');
+  // ── Schedule ──────────────────────────────────────────────────────────────
+  const events = [
+    { order: 0, title: 'Welcome Cocktails',  location: 'Vineyard · Rosewood Estate',       description: 'Sunset drinks and canapés among the vines.',             startTime: ts('2026-09-03T18:30:00'), icon: '🥂', color: 'sky',    primary: false, dress: 'Smart casual' },
+    { order: 1, title: 'Rehearsal Dinner',   location: 'Villa Dining Room · Rosewood',     description: 'An intimate dinner for the wedding party and family.',    startTime: ts('2026-09-04T19:00:00'), icon: '🕯️', color: 'sand',   primary: false, dress: 'Cocktail' },
+    { order: 2, title: 'Morning of Beauty',  location: 'Bridal Suite · Rosewood Estate',   description: 'Hair, makeup, and getting-ready with the bridal party.',  startTime: ts('2026-09-05T09:00:00'), icon: '✨', color: 'accent', primary: false, dress: 'Comfortable' },
+    { order: 3, title: 'Wedding Ceremony',   location: 'Chapel Garden · Rosewood Estate',  description: 'Please be seated 15 minutes before the ceremony.',       startTime: ts('2026-09-05T16:30:00'), icon: '💍', color: 'accent', primary: true,  dress: 'Black tie' },
+    { order: 4, title: 'Reception Dinner',   location: 'Grand Terrace · Rosewood Estate',  description: 'Dinner, toasts, and dancing under the Tuscan stars.',    startTime: ts('2026-09-05T20:00:00'), icon: '🍾', color: 'sky',    primary: false, dress: 'Black tie' },
+    { order: 5, title: 'Farewell Brunch',    location: 'Olive Grove · Rosewood Estate',    description: 'A relaxed farewell brunch before guests head home.',     startTime: ts('2026-09-06T11:00:00'), icon: '☀️', color: 'sand',   primary: false, dress: 'Casual' },
+  ];
+  const schedBatch = db.batch();
+  for (const e of events) schedBatch.set(db.collection(`weddings/${WEDDING_ID}/schedule`).doc(), e);
+  await schedBatch.commit();
+  console.log(`✓ ${events.length} schedule events`);
+
+  // ── Posts + comments + likes ──────────────────────────────────────────────
+  for (let i = 0; i < POSTS.length; i++) {
+    const p = POSTS[i];
+    const postRef = db.collection(`weddings/${WEDDING_ID}/posts`).doc();
+    await postRef.set({
+      type: p.type,
+      caption: p.caption,
+      imageURL: p.imageURL,
+      authorId: hostUser.uid,
+      authorName: HOST.displayName,
+      authorPhotoURL: HOST.avatar,
+      pinned: p.pinned,
+      createdAt: admin.firestore.Timestamp.fromMillis(Date.now() - (POSTS.length - i) * 3600000),
+    });
+
+    // Comments
+    if (COMMENTS[i]) {
+      for (let j = 0; j < COMMENTS[i].length; j++) {
+        const commenter = GUESTS[j % GUESTS.length];
+        const commenterUid = guestUids[j % guestUids.length];
+        await postRef.collection('comments').add({
+          text: COMMENTS[i][j],
+          authorId: commenterUid,
+          authorName: commenter.displayName,
+          authorPhotoURL: commenter.avatar,
+          createdAt: admin.firestore.Timestamp.fromMillis(Date.now() - (POSTS.length - i) * 3600000 + (j + 1) * 300000),
+        });
+      }
+    }
+
+    // Likes — random subset of guests
+    const likers = guestUids.filter((_, idx) => (i + idx) % 2 === 0);
+    for (const uid of likers) {
+      await postRef.collection('likes').doc(uid).set({ likedAt: admin.firestore.FieldValue.serverTimestamp() });
+    }
+
+    console.log(`✓ Post ${i + 1}/${POSTS.length}: "${p.caption.slice(0, 40)}..."`);
+  }
+
+  console.log('\n────────────────────────────────────────');
+  console.log('Guest code:    VOWED-GUEST');
+  console.log('Host code:     VOWED-HOST');
+  console.log(`Host login:    ${HOST.email} / ${PASSWORD}`);
+  console.log('────────────────────────────────────────');
 }
 
-seed()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+seed().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

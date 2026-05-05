@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     textAlign: 'center',
   },
-  dividerWrap: { width: '60%', marginVertical: 16 },
+  dividerWrap: { width: '60%', marginVertical: 16, alignSelf: 'center' },
   dateStamp: {
     fontSize: 12,
     fontWeight: '600',
