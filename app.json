@@ -1,9 +1,9 @@
 {
   "expo": {
     "name": "Vowed",
-    "slug": "our-day",
+    "slug": "vowed",
     "version": "1.0.0",
-    "scheme": "ourday",
+    "scheme": "vowed",
     "platforms": [
       "ios",
       "android"
@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ourday.wedding",
+      "bundleIdentifier": "com.vowed.app",
       "buildNumber": "5",
       "infoPlist": {
         "NSCameraUsageDescription": "Vowed uses your camera so you can share photos with your wedding party.",
@@ -32,7 +32,7 @@
       }
     },
     "android": {
-      "package": "com.ourday.app",
+      "package": "com.vowed.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
