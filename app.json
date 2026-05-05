@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Vowed",
-    "slug": "vowed",
+    "slug": "our-day",
     "version": "1.0.0",
     "scheme": "vowed",
     "platforms": [
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vowed.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "NSCameraUsageDescription": "Vowed uses your camera so you can share photos with your wedding party.",
         "NSPhotoLibraryUsageDescription": "Vowed accesses your photos so you can share them with your wedding party.",
