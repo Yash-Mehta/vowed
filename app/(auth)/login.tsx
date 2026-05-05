@@ -49,7 +49,7 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Text style={styles.title}>Welcome back</Text>
-      <Text style={styles.subtitle}>Sign in to Our Day</Text>
+      <Text style={styles.subtitle}>Sign in to Vowed</Text>
 
       <TextInput
         style={styles.input}

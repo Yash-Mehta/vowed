@@ -14,7 +14,7 @@ export default function IndexScreen() {
       />
 
       <View style={styles.logoWrap}>
-        <Text style={styles.appName}>Our Day</Text>
+        <Text style={styles.appName}>Vowed</Text>
         <Text style={styles.tagline}>Your wedding, beautifully shared</Text>
       </View>
 

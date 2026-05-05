@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Our Day",
+    "name": "Vowed",
     "slug": "our-day",
     "version": "1.0.0",
     "scheme": "ourday",
@@ -21,10 +21,10 @@
       "bundleIdentifier": "com.ourday.wedding",
       "buildNumber": "5",
       "infoPlist": {
-        "NSCameraUsageDescription": "Our Day uses your camera so you can share photos with your wedding party.",
-        "NSPhotoLibraryUsageDescription": "Our Day accesses your photos so you can share them with your wedding party.",
-        "NSPhotoLibraryAddUsageDescription": "Our Day saves photos to your library.",
-        "NSMicrophoneUsageDescription": "Our Day may access your microphone when recording videos.",
+        "NSCameraUsageDescription": "Vowed uses your camera so you can share photos with your wedding party.",
+        "NSPhotoLibraryUsageDescription": "Vowed accesses your photos so you can share them with your wedding party.",
+        "NSPhotoLibraryAddUsageDescription": "Vowed saves photos to your library.",
+        "NSMicrophoneUsageDescription": "Vowed may access your microphone when recording videos.",
         "UIBackgroundModes": [
           "remote-notification"
         ],
@@ -60,8 +60,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Our Day accesses your photos so you can share them with your wedding party.",
-          "cameraPermission": "Our Day uses your camera so you can share photos with your wedding party."
+          "photosPermission": "Vowed accesses your photos so you can share them with your wedding party.",
+          "cameraPermission": "Vowed uses your camera so you can share photos with your wedding party."
         }
       ],
       "expo-web-browser",

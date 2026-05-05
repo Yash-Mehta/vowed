@@ -129,7 +129,7 @@ export default function FeedScreen() {
     );
   }
 
-  const coupleName = config?.coupleName ?? 'Our Day';
+  const coupleName = config?.coupleName ?? 'Vowed';
   const countdownSub = config ? `${config.dateStamp} · ${config.venueShort}` : '';
 
   return (
@@ -150,7 +150,7 @@ export default function FeedScreen() {
                   </View>
                 )}
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.headerTitle}>Our Day</Text>
+                  <Text style={styles.headerTitle}>Vowed</Text>
                   <Text style={styles.headerSub}>
                     {role === 'host' ? '✦ Hosting view' : coupleName}
                   </Text>

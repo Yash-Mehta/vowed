@@ -144,7 +144,7 @@ export default function RootLayout() {
       <Slot />
       {showOverlay && (
         <Animated.View style={[StyleSheet.absoluteFill, styles.overlay, { opacity: overlayOpacity }]}>
-          <Text style={styles.overlayTitle}>Our Day</Text>
+          <Text style={styles.overlayTitle}>Vowed</Text>
         </Animated.View>
       )}
     </View>

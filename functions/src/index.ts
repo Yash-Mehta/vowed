@@ -27,7 +27,7 @@ function resetEmailHtml(resetLink: string): string {
     <tr><td align="center">
       <table width="100%" style="max-width:480px;background:#FAF6F1;border-radius:22px;padding:48px 40px;font-family:Georgia,serif;">
         <tr><td align="center" style="padding-bottom:36px;">
-          <div style="font-size:44px;color:#7A4A3F;font-style:italic;letter-spacing:-2px;">Our Day</div>
+          <div style="font-size:44px;color:#7A4A3F;font-style:italic;letter-spacing:-2px;">Vowed</div>
           <p style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8C7064;margin:8px 0 0;">Wedding &amp; Celebration App</p>
         </td></tr>
         <tr><td style="padding-bottom:12px;">
@@ -35,7 +35,7 @@ function resetEmailHtml(resetLink: string): string {
         </td></tr>
         <tr><td style="padding-bottom:32px;">
           <p style="font-family:Arial,sans-serif;font-size:15px;color:#5C463C;line-height:1.7;margin:0;">
-            Someone requested a password reset for your <strong>Our Day</strong> account. Tap the button below to choose a new password.
+            Someone requested a password reset for your <strong>Vowed</strong> account. Tap the button below to choose a new password.
           </p>
         </td></tr>
         <tr><td align="center" style="padding-bottom:32px;">
@@ -57,7 +57,7 @@ function resetEmailHtml(resetLink: string): string {
           </p>
         </td></tr>
         <tr><td align="center" style="border-top:0.5px solid rgba(122,74,63,0.14);padding-top:24px;">
-          <p style="font-family:Arial,sans-serif;font-size:11px;color:#B59E91;margin:0;">Our Day · Wedding &amp; Celebration App</p>
+          <p style="font-family:Arial,sans-serif;font-size:11px;color:#B59E91;margin:0;">Vowed · Wedding &amp; Celebration App</p>
         </td></tr>
       </table>
     </td></tr>
@@ -90,9 +90,9 @@ export const sendResetEmail = onCall(
     });
 
     await transporter.sendMail({
-      from: `"Our Day" <${gmailUser.value()}>`,
+      from: `"Vowed" <${gmailUser.value()}>`,
       to: email,
-      subject: 'Reset your Our Day password',
+      subject: 'Reset your Vowed password',
       html: resetEmailHtml(resetLink),
     });
 

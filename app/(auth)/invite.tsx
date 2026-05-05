@@ -77,7 +77,7 @@ export default function InviteScreen() {
           colors={[theme.colors.countdownStart, theme.colors.countdownEnd]}
           style={styles.hero}>
           <Animated.View style={[styles.heroContent, { opacity: fadeAnim }]}>
-            <Text style={styles.appName}>Our Day</Text>
+            <Text style={styles.appName}>Vowed</Text>
             <Text style={styles.appTagline}>Your wedding, beautifully shared</Text>
           </Animated.View>
         </LinearGradient>

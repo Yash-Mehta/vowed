@@ -78,7 +78,7 @@ export default function ScheduleScreen() {
               {role === 'host' ? '✦ Hosting · Weekend' : 'Wedding weekend'}
             </Text>
             <Text style={styles.heading}>
-              {config?.coupleName ?? 'Our Day'}
+              {config?.coupleName ?? 'Vowed'}
             </Text>
             {!!headingSub && <Text style={styles.sub}>{headingSub}</Text>}
           </View>

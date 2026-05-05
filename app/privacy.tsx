@@ -18,7 +18,7 @@ export default function PrivacyScreen() {
 
       <Text style={styles.heading}>Overview</Text>
       <Text style={styles.body}>
-        Our Day ("the app") is a private, invite-only wedding app. Access is restricted to couples and their invited guests. We collect only the minimum data necessary to provide the app's features.
+        Vowed ("the app") is a private, invite-only wedding app. Access is restricted to couples and their invited guests. We collect only the minimum data necessary to provide the app's features.
       </Text>
 
       <Text style={styles.heading}>Data We Collect</Text>
@@ -46,7 +46,7 @@ export default function PrivacyScreen() {
 
       <Text style={styles.heading}>Children's Privacy</Text>
       <Text style={styles.body}>
-        Our Day is not directed at children under 13. We do not knowingly collect personal information from children.
+        Vowed is not directed at children under 13. We do not knowingly collect personal information from children.
       </Text>
 
       <Text style={styles.heading}>Contact</Text>
