@@ -19,7 +19,13 @@
         "image": "latest"
       },
       "env": {
-        "RCT_NEW_ARCH_ENABLED": "1"
+        "RCT_NEW_ARCH_ENABLED": "1",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDbK-WFoJOWTR9bsQuF-u6vV7HlR4j5mcc",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "our-day-39d9d.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "our-day-39d9d",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "our-day-39d9d.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "934591376228",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:934591376228:web:701f903f68faa55887a871"
       }
     }
   },
