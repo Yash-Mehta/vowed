@@ -13,12 +13,14 @@ import { useRouter } from 'expo-router';
 import { sendEmailVerification, reload, signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { clearCredentials } from '../../lib/secureAuth';
+import { useAuthStore } from '../../store/authStore';
 import { theme } from '../../constants/theme';
 
 export default function VerifyEmailScreen() {
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   const router = useRouter();
+  const { pendingRole, weddingId, isProfileComplete } = useAuthStore();
 
 
   async function handleCheckVerified() {
@@ -28,8 +30,13 @@ export default function VerifyEmailScreen() {
     try {
       await reload(user);
       if (user.emailVerified) {
-        // _layout.tsx will pick up the updated user and route to profile-setup
-        router.replace('/(auth)/profile-setup');
+        if (isProfileComplete && weddingId) {
+          router.replace('/(tabs)/feed');
+        } else if (pendingRole === 'host' && !weddingId) {
+          router.replace('/(onboarding)/names');
+        } else {
+          router.replace('/(auth)/profile-setup');
+        }
       } else {
         Alert.alert(
           'Not verified yet',

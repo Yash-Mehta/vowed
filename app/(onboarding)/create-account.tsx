@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { saveCredentials } from '../../lib/secureAuth';
 import { useAuthStore } from '../../store/authStore';
@@ -39,7 +39,8 @@ export default function CreateAccountScreen() {
       setPendingRole('host');
       update({ ownerName: ownerName.trim() });
       try {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await sendEmailVerification(cred.user);
       } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
           try {
@@ -54,7 +55,7 @@ export default function CreateAccountScreen() {
         }
       }
       await saveCredentials(email.trim(), password);
-      router.push('/(onboarding)/names');
+      router.replace('/(auth)/verify-email');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
