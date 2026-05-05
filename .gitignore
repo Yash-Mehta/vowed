@@ -46,3 +46,9 @@ yarn-error.*
 .swarm/
 serviceAccountKey.json
 ruvector.db
+
+# package tarballs
+*.tgz
+
+# Firebase Functions build output
+functions/lib/
