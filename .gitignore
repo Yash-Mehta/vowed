@@ -54,5 +54,8 @@ ruvector.db
 # package tarballs
 *.tgz
 
+# build outputs
+*.ipa
+
 # Firebase Functions build output
 functions/lib/
