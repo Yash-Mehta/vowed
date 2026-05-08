@@ -9,31 +9,21 @@ admin.initializeApp({
 const db = admin.firestore();
 const storage = admin.storage();
 
-async function deleteCollection(colPath: string) {
-  const col = db.collection(colPath);
-  let deleted = 0;
-  while (true) {
-    const snap = await col.limit(100).get();
-    if (snap.empty) break;
-    const batch = db.batch();
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-    deleted += snap.size;
-  }
-  if (deleted) console.log(`  deleted ${deleted} docs from /${colPath}`);
-}
+const WEDDING_ID = 'seed-wedding-001';
+const GUEST_CODE = 'VOWED-GUEST';
+const HOST_CODE  = 'VOWED-HOST';
 
-async function deleteCollectionGroup(groupId: string) {
+async function deleteSubcollection(parent: string, colId: string) {
   let deleted = 0;
   while (true) {
-    const snap = await db.collectionGroup(groupId).limit(100).get();
+    const snap = await db.collection(`${parent}/${colId}`).limit(100).get();
     if (snap.empty) break;
     const batch = db.batch();
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
     deleted += snap.size;
   }
-  if (deleted) console.log(`  deleted ${deleted} docs from group:${groupId}`);
+  if (deleted) console.log(`  deleted ${deleted} docs from ${parent}/${colId}`);
 }
 
 async function deleteStorageFolder(prefix: string) {
@@ -48,44 +38,59 @@ async function deleteStorageFolder(prefix: string) {
   }
 }
 
-async function deleteAuthUsers() {
-  let deleted = 0;
-  let pageToken: string | undefined;
-  while (true) {
-    const result = await admin.auth().listUsers(1000, pageToken);
-    if (!result.users.length) break;
-    const uids = result.users.map((u) => u.uid);
-    await admin.auth().deleteUsers(uids);
-    deleted += uids.length;
-    pageToken = result.pageToken;
-    if (!pageToken) break;
-  }
-  if (deleted) console.log(`  deleted ${deleted} auth users`);
-}
-
 async function main() {
-  console.log('Wiping database...\n');
+  console.log(`Wiping seed wedding (${WEDDING_ID})...\n`);
 
-  // Delete subcollections first (Firestore doesn't auto-delete them)
-  await deleteCollectionGroup('posts');
-  await deleteCollectionGroup('members');
-  await deleteCollectionGroup('schedule');
-  await deleteCollectionGroup('comments');
-  await deleteCollectionGroup('likes');
+  // Subcollections
+  const weddingPath = `weddings/${WEDDING_ID}`;
+  await deleteSubcollection(weddingPath, 'members');
+  await deleteSubcollection(weddingPath, 'schedule');
 
-  // Top-level collections
-  await deleteCollection('weddings');
-  await deleteCollection('weddingsByCode');
-  await deleteCollection('users');
+  // Posts and their subcollections
+  const postsSnap = await db.collection(`${weddingPath}/posts`).get();
+  for (const postDoc of postsSnap.docs) {
+    await deleteSubcollection(`${weddingPath}/posts/${postDoc.id}`, 'comments');
+    await deleteSubcollection(`${weddingPath}/posts/${postDoc.id}`, 'likes');
+    await postDoc.ref.delete();
+  }
+  if (postsSnap.size) console.log(`  deleted ${postsSnap.size} posts (with comments/likes)`);
+
+  // Wedding doc
+  await db.doc(weddingPath).delete();
+  console.log(`  deleted weddings/${WEDDING_ID}`);
+
+  // Invite code docs
+  await db.doc(`weddingsByCode/${GUEST_CODE}`).delete();
+  await db.doc(`weddingsByCode/${HOST_CODE}`).delete();
+  console.log(`  deleted weddingsByCode/${GUEST_CODE}, ${HOST_CODE}`);
+
+  // Delete only seed users (members of seed wedding)
+  const seedEmails = [
+    'james.carter@example.com',
+    'sophia.lane@example.com',
+    'ethan.brooks@example.com',
+    'maya.patel@example.com',
+    'lucas.wright@example.com',
+    'chloe.morgan@example.com',
+    'noah.davis@example.com',
+  ];
+  const uids: string[] = [];
+  for (const email of seedEmails) {
+    try {
+      const u = await admin.auth().getUserByEmail(email);
+      uids.push(u.uid);
+      await db.doc(`users/${u.uid}`).delete();
+    } catch {}
+  }
+  if (uids.length) {
+    await admin.auth().deleteUsers(uids);
+    console.log(`  deleted ${uids.length} seed auth users`);
+  }
 
   // Storage
-  await deleteStorageFolder('weddings/');
-  await deleteStorageFolder('avatars/');
+  await deleteStorageFolder(`weddings/${WEDDING_ID}/`);
 
-  // Auth
-  await deleteAuthUsers();
-
-  console.log('\nDone. Database is clean.');
+  console.log('\nDone. Seed data wiped.');
   process.exit(0);
 }
 

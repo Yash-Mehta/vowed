@@ -29,6 +29,7 @@ export default function RootLayout() {
     firebaseUser,
     isProfileComplete,
     weddingId,
+    pendingWeddingId,
   } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
@@ -142,13 +143,13 @@ export default function RootLayout() {
     } else if (firebaseUser && inAuth && emailVerified) {
       if (isProfileComplete) {
         playEntryTransition(() => router.replace('/(tabs)/feed'));
-      } else if (segments[1] !== 'profile-setup') {
-        router.replace('/(auth)/profile-setup');
+      } else if (segments[1] !== 'profile-setup' && segments[1] !== 'invite') {
+        router.replace(pendingWeddingId ? '/(auth)/profile-setup' : '/(auth)/invite');
       }
     } else if (firebaseUser && !inOnboarding && emailVerified && !isProfileComplete) {
-      router.replace('/(auth)/profile-setup');
+      router.replace(pendingWeddingId ? '/(auth)/profile-setup' : '/(auth)/invite');
     }
-  }, [isLoading, fontsLoaded, firebaseUser, isProfileComplete, segments]);
+  }, [isLoading, fontsLoaded, firebaseUser, isProfileComplete, pendingWeddingId, segments]);
 
   if (!fontsLoaded) return null;
 

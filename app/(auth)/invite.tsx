@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { validateInviteCode, CodeIndexDoc } from '../../lib/firestore';
 import { SprigDivider } from '../../components/SprigDivider';
 import { theme } from '../../constants/theme';
+import { auth } from '../../lib/firebase';
 
 export default function InviteScreen() {
   const [code, setCode] = useState('');
@@ -53,6 +54,11 @@ export default function InviteScreen() {
 
   function handleContinue() {
     if (!pendingResult) return;
+    // Already authenticated — skip registration, go straight to profile setup
+    if (auth.currentUser) {
+      router.push('/(auth)/profile-setup');
+      return;
+    }
     router.push({
       pathname: '/(auth)/register',
       params: { code: code.trim().toUpperCase(), role: pendingResult.role, weddingId: pendingResult.weddingId },
