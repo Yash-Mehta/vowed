@@ -20,8 +20,7 @@ export default function VerifyEmailScreen() {
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   const router = useRouter();
-  const { pendingRole, pendingWeddingId, weddingId, isProfileComplete } = useAuthStore();
-
+  const { pendingRole, pendingWeddingId } = useAuthStore();
 
   async function handleCheckVerified() {
     const user = auth.currentUser;
@@ -30,9 +29,7 @@ export default function VerifyEmailScreen() {
     try {
       await reload(user);
       if (user.emailVerified) {
-        if (isProfileComplete && weddingId) {
-          router.replace('/(tabs)/feed');
-        } else if (pendingRole === 'host' && !weddingId && !pendingWeddingId) {
+        if (pendingRole === 'host' && !pendingWeddingId) {
           // Creating a new wedding (no existing wedding to join)
           router.replace('/(onboarding)/names');
         } else {
