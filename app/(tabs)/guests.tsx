@@ -54,7 +54,14 @@ export default function GuestsScreen() {
             style={styles.card}
             onPress={() => router.push(`/guest/${item.uid}`)}
             activeOpacity={0.8}>
-            <Avatar uri={item.photoURL} name={item.displayName} size={64} />
+            <View style={styles.avatarWrap}>
+              <Avatar uri={item.photoURL} name={item.displayName} size={64} />
+              {item.isSingle && (
+                <View style={styles.singleBadge}>
+                  <Text style={styles.singleBadgeText}>S</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.name} numberOfLines={1}>
               {item.displayName}
             </Text>
@@ -110,6 +117,28 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
     lineHeight: 16,
+    fontFamily: theme.fonts.sans,
+  },
+  avatarWrap: {
+    position: 'relative',
+  },
+  singleBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E8B84B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: theme.colors.card,
+  },
+  singleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: theme.colors.card,
     fontFamily: theme.fonts.sans,
   },
 });

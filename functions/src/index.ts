@@ -102,9 +102,10 @@ export const sendResetEmail = onCall(
 
 // ── Push notifications ────────────────────────────────────────────────────────
 
-async function getWeddingFcmTokens(weddingId: string): Promise<string[]> {
+async function getWeddingFcmTokens(weddingId: string, excludeUid?: string): Promise<string[]> {
   const snap = await db.collection('weddings').doc(weddingId).collection('members').get();
   return snap.docs
+    .filter((d) => !excludeUid || d.id !== excludeUid)
     .map((d) => d.data().fcmToken as string | null)
     .filter((t): t is string => !!t);
 }
@@ -115,16 +116,24 @@ export const onPostCreated = onDocumentCreated(
     const post = event.data?.data();
     if (!post) return;
     const { weddingId } = event.params;
-    const tokens = await getWeddingFcmTokens(weddingId);
+    const authorId = post.authorId as string | undefined;
+    const tokens = await getWeddingFcmTokens(weddingId, authorId);
     if (tokens.length === 0) return;
     const isAnnouncement = post.type === 'announcement';
-    const title = isAnnouncement ? 'New announcement' : `${post.authorName} posted a photo`;
-    const body = (post.caption as string | undefined)?.slice(0, 120) ?? '';
-    await messaging.sendEachForMulticast({
-      tokens,
-      notification: { title, body },
-      apns: { payload: { aps: { sound: 'default' } } },
-    });
+    const authorName = (post.authorName as string | undefined) ?? 'Someone';
+    const title = isAnnouncement
+      ? '📢 Wedding announcement'
+      : `New photo from ${authorName}`;
+    const body = (post.caption as string | undefined)?.slice(0, 100) ?? '';
+    try {
+      await messaging.sendEachForMulticast({
+        tokens,
+        notification: { title, body },
+        apns: { payload: { aps: { sound: 'default' } } },
+      });
+    } catch (err) {
+      console.error('sendEachForMulticast error:', err);
+    }
   }
 );
 

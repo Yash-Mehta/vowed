@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
   const { firebaseUser, userDoc, weddingId, setUserDoc } = useAuthStore();
   const [displayName, setDisplayName] = useState(userDoc?.displayName ?? '');
   const [howTheyKnow, setHowTheyKnow] = useState(userDoc?.howTheyKnow ?? '');
+  const [isSingle, setIsSingle] = useState(userDoc?.isSingle ?? false);
   const [saving, setSaving] = useState(false);
   const [photoURI, setPhotoURI] = useState<string | null>(userDoc?.photoURL ?? null);
 
@@ -76,6 +78,18 @@ export default function ProfileScreen() {
       Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleSingleToggle(value: boolean) {
+    setIsSingle(value);
+    if (!firebaseUser || !weddingId) return;
+    try {
+      await updateMember(weddingId, firebaseUser.uid, { isSingle: value });
+      setUserDoc({ ...userDoc!, isSingle: value });
+    } catch (e: any) {
+      setIsSingle(!value);
+      Alert.alert('Error', e?.message ?? 'Could not update. Please try again.');
     }
   }
 
@@ -184,6 +198,16 @@ export default function ProfileScreen() {
           <Text style={styles.charCount}>{howTheyKnow.length}/100</Text>
         </View>
 
+        <View style={styles.toggleRow}>
+          <Text style={styles.toggleLabel}>I'm single</Text>
+          <Switch
+            value={isSingle}
+            onValueChange={handleSingleToggle}
+            trackColor={{ false: theme.colors.line, true: '#E8B84B' }}
+            thumbColor={theme.colors.card}
+          />
+        </View>
+
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -270,6 +294,14 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 80, textAlignVertical: 'top', paddingTop: 11 },
   charCount: { fontSize: 11, color: theme.colors.ink4, textAlign: 'right', marginTop: 4, fontFamily: theme.fonts.sans },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    paddingHorizontal: 2,
+  },
+  toggleLabel: { fontSize: 15, color: theme.colors.ink, fontFamily: theme.fonts.sans },
   saveBtn: {
     backgroundColor: theme.colors.accent,
     borderRadius: theme.radii.pill,

@@ -29,9 +29,14 @@ const colorMap: Record<string, { bg: string; accent: string }> = {
 };
 
 export function ScheduleEventCard({ event, isNext, isPast, countdown }: Props) {
-  const time = event.startTime?.toDate
-    ? event.startTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const timeDate = event.startTime?.toDate ? event.startTime.toDate() : null;
+  const time = timeDate
+    ? timeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
+  const dateLabel = timeDate
+    ? timeDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    : '';
+  const timeDisplay = dateLabel && time ? `${dateLabel}  ·  ${time}` : time || dateLabel;
   const c = colorMap[event.color ?? 'accent'];
 
   return (
@@ -53,7 +58,7 @@ export function ScheduleEventCard({ event, isNext, isPast, countdown }: Props) {
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.time, isPast && styles.pastText, { color: c.accent }]}>{time}</Text>
+          <Text style={[styles.time, isPast && styles.pastText, { color: c.accent }]}>{timeDisplay}</Text>
           <Text style={[styles.title, isPast && styles.pastText, event.primary && styles.primaryTitle]}>
             {event.title}
           </Text>

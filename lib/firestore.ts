@@ -18,6 +18,7 @@ export interface UserDoc {
   role: UserRole;
   fcmToken: string | null;
   createdAt: unknown;
+  isSingle?: boolean;
 }
 
 export interface UserIndexDoc {

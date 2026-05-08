@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ScrollView,
+  Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -24,6 +25,7 @@ export default function ProfileSetupScreen() {
   const [displayName, setDisplayName] = useState('');
   const [howTheyKnow, setHowTheyKnow] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [isSingle, setIsSingle] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function pickAvatar() {
@@ -84,6 +86,7 @@ export default function ProfileSetupScreen() {
         howTheyKnow: howTheyKnow.trim(),
         photoURL,
         role,
+        isSingle,
       };
       await createMember(pendingWeddingId, uid, memberData);
       await createUserIndex(uid, pendingWeddingId);
@@ -132,6 +135,16 @@ export default function ProfileSetupScreen() {
       />
       <Text style={styles.charCount}>{howTheyKnow.length}/100</Text>
 
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>I'm single</Text>
+        <Switch
+          value={isSingle}
+          onValueChange={setIsSingle}
+          trackColor={{ false: theme.colors.line, true: '#E8B84B' }}
+          thumbColor={theme.colors.card}
+        />
+      </View>
+
       <TouchableOpacity style={styles.button} onPress={handleComplete} disabled={loading} activeOpacity={0.85}>
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
       </TouchableOpacity>
@@ -157,6 +170,14 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   charCount: { fontSize: 12, color: theme.colors.ink4, textAlign: 'right', marginBottom: 16, fontFamily: theme.fonts.sans },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  toggleLabel: { fontSize: 15, color: theme.colors.ink, fontFamily: theme.fonts.sans },
   button: { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill, padding: 16, alignItems: 'center' },
   buttonText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
 });
