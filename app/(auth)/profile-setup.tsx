@@ -156,6 +156,10 @@ export default function ProfileSetupScreen() {
       <TouchableOpacity style={styles.button} onPress={handleComplete} disabled={loading} activeOpacity={0.85}>
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <Text style={styles.backText}>Go back</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -220,4 +224,6 @@ const styles = StyleSheet.create({
   singleCheck: { fontSize: 11, color: '#fff', fontWeight: '700' },
   button: { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill, padding: 16, alignItems: 'center' },
   buttonText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
+  backBtn: { paddingVertical: 16, alignItems: 'center' },
+  backText: { color: theme.colors.ink3, fontSize: 14, fontFamily: theme.fonts.sans },
 });

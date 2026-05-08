@@ -10,15 +10,28 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { signOut } from 'firebase/auth';
 import { useAuthStore } from '../store/authStore';
 import { getMember, getWeddingPreviews, WeddingPreview } from '../lib/firestore';
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
+import { clearCredentials } from '../lib/secureAuth';
 import { theme } from '../constants/theme';
 
 export default function SelectWeddingScreen() {
   const router = useRouter();
   const { userWeddingIds, switchWedding } = useAuthStore();
+
+  async function handleSignOut() {
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => { await clearCredentials(); signOut(auth); },
+      },
+    ]);
+  }
   const [previews, setPreviews] = useState<WeddingPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
@@ -82,6 +95,9 @@ export default function SelectWeddingScreen() {
             activeOpacity={0.85}>
             <Text style={styles.addBtnText}>Add a wedding party</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
+            <Text style={styles.signOutText}>Sign out</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -108,12 +124,17 @@ export default function SelectWeddingScreen() {
             </TouchableOpacity>
           )}
           ListFooterComponent={
-            <TouchableOpacity
-              style={styles.addRow}
-              onPress={() => router.push('/(auth)/invite')}
-              activeOpacity={0.7}>
-              <Text style={styles.addRowText}>+ Add another wedding party</Text>
-            </TouchableOpacity>
+            <View>
+              <TouchableOpacity
+                style={styles.addRow}
+                onPress={() => router.push('/(auth)/invite')}
+                activeOpacity={0.7}>
+                <Text style={styles.addRowText}>+ Add another wedding party</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
+                <Text style={styles.signOutText}>Sign out</Text>
+              </TouchableOpacity>
+            </View>
           }
         />
       )}
@@ -182,6 +203,8 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sans,
     fontWeight: '500',
   },
+  signOutRow: { paddingVertical: 12, alignItems: 'center' },
+  signOutText: { fontSize: 13, color: theme.colors.ink4, fontFamily: theme.fonts.sans },
   empty: {
     flex: 1,
     justifyContent: 'center',
