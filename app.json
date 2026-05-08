@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vowed",
     "slug": "our-day",
-    "version": "1.0.4",
+    "version": "1.1.0",
     "scheme": "vowed",
     "platforms": [
       "ios",
@@ -41,6 +41,7 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE"
@@ -64,6 +65,7 @@
           "cameraPermission": "Vowed uses your camera so you can share photos with your wedding party."
         }
       ],
+      "expo-media-library",
       "expo-web-browser",
       "expo-secure-store",
       "@react-native-community/datetimepicker",

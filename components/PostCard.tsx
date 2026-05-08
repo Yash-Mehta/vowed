@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
 import { theme } from '../constants/theme';
 
@@ -26,9 +27,10 @@ interface Props {
   onDelete?: () => void;
   onTogglePin?: () => void;
   onEdit?: (newCaption: string) => void;
+  onDownload?: () => void;
 }
 
-export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete, onTogglePin, onEdit }: Props) {
+export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
 
@@ -97,7 +99,14 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
         )}
       </View>
       {post.photoURL && (
-        <Image source={{ uri: post.photoURL }} style={styles.photo} resizeMode="cover" />
+        <View style={styles.photoContainer}>
+          <Image source={{ uri: post.photoURL }} style={styles.photo} resizeMode="cover" />
+          {isHost && onDownload && (
+            <TouchableOpacity style={styles.downloadBtn} onPress={onDownload} activeOpacity={0.75}>
+              <Ionicons name="download-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
       )}
       {editing ? (
         <View style={styles.editWrap}>
@@ -193,7 +202,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     fontFamily: theme.fonts.sans,
   },
-  photo: { width: '100%', aspectRatio: 4 / 3 },
+  photoContainer: { width: '100%', aspectRatio: 4 / 3 },
+  photo: { width: '100%', height: '100%' },
+  downloadBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   caption: {
     padding: 12,
     fontSize: 14,

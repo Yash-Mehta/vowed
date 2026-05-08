@@ -20,6 +20,8 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
@@ -121,6 +123,24 @@ export default function FeedScreen() {
     );
   }
 
+  async function handleDownload(post: Post) {
+    if (!post.photoURL) return;
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow photo library access to save photos.');
+        return;
+      }
+      const fileName = `vowed_${post.id}_${Date.now()}.jpg`;
+      const localUri = FileSystem.cacheDirectory + fileName;
+      const { uri } = await FileSystem.downloadAsync(post.photoURL, localUri);
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved', 'Photo saved to your camera roll.');
+    } catch {
+      Alert.alert('Error', 'Could not save the photo. Please try again.');
+    }
+  }
+
   if (loading) {
     return (
       <ScreenWrapper>
@@ -208,6 +228,7 @@ export default function FeedScreen() {
               onDelete={role === 'host' ? () => handleDelete(item) : undefined}
               onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
               onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
+              onDownload={role === 'host' && item.photoURL ? () => handleDownload(item) : undefined}
             />
           )
         }
@@ -225,7 +246,7 @@ export default function FeedScreen() {
         contentContainerStyle={{ paddingVertical: 12, paddingBottom: 100 }}
       />
 
-      {role === 'host' && (
+      {(role === 'host' || role === 'guest') && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => router.push('/compose')}

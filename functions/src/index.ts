@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
@@ -11,7 +10,6 @@ import * as nodemailer from 'nodemailer';
 initializeApp();
 
 const db = getFirestore();
-const messaging = getMessaging();
 
 const gmailUser = defineSecret('GMAIL_USER');
 const gmailPass = defineSecret('GMAIL_APP_PASS');
@@ -102,12 +100,27 @@ export const sendResetEmail = onCall(
 
 // ── Push notifications ────────────────────────────────────────────────────────
 
-async function getWeddingFcmTokens(weddingId: string, excludeUid?: string): Promise<string[]> {
+async function getWeddingPushTokens(weddingId: string, excludeUid?: string): Promise<string[]> {
   const snap = await db.collection('weddings').doc(weddingId).collection('members').get();
   return snap.docs
     .filter((d) => !excludeUid || d.id !== excludeUid)
     .map((d) => d.data().fcmToken as string | null)
-    .filter((t): t is string => !!t);
+    .filter((t): t is string => !!t && t.startsWith('ExponentPushToken['));
+}
+
+async function sendExpoPush(
+  tokens: string[],
+  title: string,
+  body: string
+): Promise<void> {
+  if (tokens.length === 0) return;
+  const messages = tokens.map((to) => ({ to, title, body, sound: 'default' }));
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(messages),
+  });
+  if (!res.ok) console.error('Expo push error:', await res.text());
 }
 
 export const onPostCreated = onDocumentCreated(
@@ -117,23 +130,13 @@ export const onPostCreated = onDocumentCreated(
     if (!post) return;
     const { weddingId } = event.params;
     const authorId = post.authorId as string | undefined;
-    const tokens = await getWeddingFcmTokens(weddingId, authorId);
+    const tokens = await getWeddingPushTokens(weddingId, authorId);
     if (tokens.length === 0) return;
     const isAnnouncement = post.type === 'announcement';
     const authorName = (post.authorName as string | undefined) ?? 'Someone';
-    const title = isAnnouncement
-      ? '📢 Wedding announcement'
-      : `New photo from ${authorName}`;
+    const title = isAnnouncement ? 'Wedding announcement' : `New photo from ${authorName}`;
     const body = (post.caption as string | undefined)?.slice(0, 100) ?? '';
-    try {
-      await messaging.sendEachForMulticast({
-        tokens,
-        notification: { title, body },
-        apns: { payload: { aps: { sound: 'default' } } },
-      });
-    } catch (err) {
-      console.error('sendEachForMulticast error:', err);
-    }
+    await sendExpoPush(tokens, title, body);
   }
 );
 
@@ -152,15 +155,13 @@ export const onCommentCreated = onDocumentCreated(
     const authorSnap = await db.doc(`weddings/${weddingId}/members/${post.authorId}`).get();
     if (!authorSnap.exists) return;
     const token = authorSnap.data()?.fcmToken as string | null;
-    if (!token) return;
-    await messaging.send({
-      token,
-      notification: {
-        title: `${comment.authorName} commented on your post`,
-        body: (comment.text as string | undefined)?.slice(0, 120) ?? '',
-      },
-      apns: { payload: { aps: { sound: 'default' } } },
-    });
+    if (!token || !token.startsWith('ExponentPushToken[')) return;
+    const commentAuthorName = (comment.authorName as string | undefined) ?? 'Someone';
+    await sendExpoPush(
+      [token],
+      `${commentAuthorName} commented on your post`,
+      (comment.text as string | undefined)?.slice(0, 120) ?? ''
+    );
   }
 );
 

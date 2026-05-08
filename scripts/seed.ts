@@ -20,12 +20,12 @@ function ts(iso: string) {
 }
 
 const GUESTS = [
-  { email: 'sophia.lane@example.com',   displayName: 'Sophia Lane',    howTheyKnow: "Olivia's maid of honour",    avatar: 'https://randomuser.me/api/portraits/women/44.jpg' },
-  { email: 'ethan.brooks@example.com',  displayName: 'Ethan Brooks',   howTheyKnow: "James's best man",           avatar: 'https://randomuser.me/api/portraits/men/32.jpg' },
-  { email: 'maya.patel@example.com',    displayName: 'Maya Patel',     howTheyKnow: "Olivia's college roommate",  avatar: 'https://randomuser.me/api/portraits/women/68.jpg' },
-  { email: 'lucas.wright@example.com',  displayName: 'Lucas Wright',   howTheyKnow: "James's childhood friend",   avatar: 'https://randomuser.me/api/portraits/men/55.jpg' },
-  { email: 'chloe.morgan@example.com',  displayName: 'Chloe Morgan',   howTheyKnow: "Olivia's sister",            avatar: 'https://randomuser.me/api/portraits/women/21.jpg' },
-  { email: 'noah.davis@example.com',    displayName: 'Noah Davis',     howTheyKnow: "Work colleague of James's",  avatar: 'https://randomuser.me/api/portraits/men/76.jpg' },
+  { email: 'sophia.lane@example.com',   displayName: 'Sophia Lane',    howTheyKnow: "Olivia's maid of honour",    avatar: 'https://randomuser.me/api/portraits/women/44.jpg', isSingle: true  },
+  { email: 'ethan.brooks@example.com',  displayName: 'Ethan Brooks',   howTheyKnow: "James's best man",           avatar: 'https://randomuser.me/api/portraits/men/32.jpg',   isSingle: false },
+  { email: 'maya.patel@example.com',    displayName: 'Maya Patel',     howTheyKnow: "Olivia's college roommate",  avatar: 'https://randomuser.me/api/portraits/women/68.jpg', isSingle: true  },
+  { email: 'lucas.wright@example.com',  displayName: 'Lucas Wright',   howTheyKnow: "James's childhood friend",   avatar: 'https://randomuser.me/api/portraits/men/55.jpg',   isSingle: false },
+  { email: 'chloe.morgan@example.com',  displayName: 'Chloe Morgan',   howTheyKnow: "Olivia's sister",            avatar: 'https://randomuser.me/api/portraits/women/21.jpg', isSingle: false },
+  { email: 'noah.davis@example.com',    displayName: 'Noah Davis',     howTheyKnow: "Work colleague of James's",  avatar: 'https://randomuser.me/api/portraits/men/76.jpg',   isSingle: true  },
 ];
 
 const HOST = {
@@ -165,6 +165,7 @@ async function seed() {
       photoURL: g.avatar,
       howTheyKnow: g.howTheyKnow,
       role: 'guest',
+      isSingle: g.isSingle,
       fcmToken: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });

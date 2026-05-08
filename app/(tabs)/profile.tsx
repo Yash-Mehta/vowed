@@ -9,7 +9,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -198,15 +197,22 @@ export default function ProfileScreen() {
           <Text style={styles.charCount}>{howTheyKnow.length}/100</Text>
         </View>
 
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>I'm single</Text>
-          <Switch
-            value={isSingle}
-            onValueChange={handleSingleToggle}
-            trackColor={{ false: theme.colors.line, true: '#E8B84B' }}
-            thumbColor={theme.colors.card}
-          />
-        </View>
+        <TouchableOpacity
+          style={[styles.singleCard, isSingle && styles.singleCardActive]}
+          onPress={() => handleSingleToggle(!isSingle)}
+          activeOpacity={0.75}>
+          <View style={styles.singleCardInner}>
+            <Text style={[styles.singleCardTitle, isSingle && styles.singleCardTitleActive]}>
+              Flying solo
+            </Text>
+            <Text style={styles.singleCardSub}>
+              Let your fellow guests know you're available
+            </Text>
+          </View>
+          <View style={[styles.singleDot, isSingle && styles.singleDotActive]}>
+            {isSingle && <Text style={styles.singleCheck}>✓</Text>}
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
@@ -294,14 +300,46 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 80, textAlignVertical: 'top', paddingTop: 11 },
   charCount: { fontSize: 11, color: theme.colors.ink4, textAlign: 'right', marginTop: 4, fontFamily: theme.fonts.sans },
-  toggleRow: {
+  singleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radii.lg,
+    padding: 16,
     marginBottom: 18,
-    paddingHorizontal: 2,
+    backgroundColor: theme.colors.card,
   },
-  toggleLabel: { fontSize: 15, color: theme.colors.ink, fontFamily: theme.fonts.sans },
+  singleCardActive: {
+    borderColor: '#E8B84B',
+    backgroundColor: '#FEFAEF',
+  },
+  singleCardInner: { flex: 1 },
+  singleCardTitle: {
+    fontSize: 16,
+    fontFamily: theme.fonts.serifItalic,
+    color: theme.colors.ink2,
+    marginBottom: 2,
+  },
+  singleCardTitleActive: { color: '#B8860B' },
+  singleCardSub: {
+    fontSize: 12,
+    fontFamily: theme.fonts.sans,
+    color: theme.colors.ink4,
+    lineHeight: 16,
+  },
+  singleDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: theme.colors.line,
+    marginLeft: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  singleDotActive: { borderColor: '#E8B84B', backgroundColor: '#E8B84B' },
+  singleCheck: { fontSize: 11, color: '#fff', fontWeight: '700' },
   saveBtn: {
     backgroundColor: theme.colors.accent,
     borderRadius: theme.radii.pill,

@@ -48,7 +48,8 @@ service cloud.firestore {
       // ── Posts ────────────────────────────────────────────────────────────────
       match /posts/{postId} {
         allow read: if isMember(weddingId);
-        allow create, update, delete: if isHost(weddingId);
+        allow create: if isMember(weddingId);
+        allow update, delete: if isHost(weddingId);
 
         match /comments/{commentId} {
           allow read: if isMember(weddingId);

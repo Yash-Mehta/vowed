@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -24,9 +25,12 @@ export async function registerForPushNotifications(
   }
   if (finalStatus !== 'granted') return;
 
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+  if (!projectId) return;
+
   let token: string;
   try {
-    token = (await Notifications.getExpoPushTokenAsync()).data;
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch {
     return;
   }

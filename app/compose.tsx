@@ -23,7 +23,7 @@ import { theme } from '../constants/theme';
 
 export default function ComposeScreen() {
   const router = useRouter();
-  const { firebaseUser, userDoc, weddingId } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId, role } = useAuthStore();
   const [caption, setCaption] = useState('');
   const [imageURI, setImageURI] = useState<string | null>(null);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
@@ -114,24 +114,26 @@ export default function ComposeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[styles.typeBtn, !isAnnouncement && styles.typeBtnActive]}
-            onPress={() => setIsAnnouncement(false)}
-            activeOpacity={0.8}>
-            <Text style={[styles.typeBtnText, !isAnnouncement && styles.typeBtnTextActive]}>
-              Photo
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.typeBtn, isAnnouncement && styles.typeBtnActive]}
-            onPress={() => setIsAnnouncement(true)}
-            activeOpacity={0.8}>
-            <Text style={[styles.typeBtnText, isAnnouncement && styles.typeBtnTextActive]}>
-              Announcement
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {role === 'host' && (
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.typeBtn, !isAnnouncement && styles.typeBtnActive]}
+              onPress={() => setIsAnnouncement(false)}
+              activeOpacity={0.8}>
+              <Text style={[styles.typeBtnText, !isAnnouncement && styles.typeBtnTextActive]}>
+                Photo
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.typeBtn, isAnnouncement && styles.typeBtnActive]}
+              onPress={() => setIsAnnouncement(true)}
+              activeOpacity={0.8}>
+              <Text style={[styles.typeBtnText, isAnnouncement && styles.typeBtnTextActive]}>
+                Announcement
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {!isAnnouncement && (
           <TouchableOpacity style={styles.photoPicker} onPress={pickImage} activeOpacity={0.8}>
@@ -156,18 +158,20 @@ export default function ComposeScreen() {
           autoFocus
         />
 
-        <View style={styles.switchRow}>
-          <View>
-            <Text style={styles.switchLabel}>Pin to top of feed</Text>
-            <Text style={styles.switchSub}>Pinned posts stay at the top</Text>
+        {role === 'host' && (
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.switchLabel}>Pin to top of feed</Text>
+              <Text style={styles.switchSub}>Pinned posts stay at the top</Text>
+            </View>
+            <Switch
+              value={pinned}
+              onValueChange={setPinned}
+              trackColor={{ false: theme.colors.surface3, true: theme.colors.accentSoft }}
+              thumbColor={pinned ? theme.colors.accent : theme.colors.card}
+            />
           </View>
-          <Switch
-            value={pinned}
-            onValueChange={setPinned}
-            trackColor={{ false: theme.colors.surface3, true: theme.colors.accentSoft }}
-            thumbColor={pinned ? theme.colors.accent : theme.colors.card}
-          />
-        </View>
+        )}
       </ScrollView>
     </ScreenWrapper>
   );
