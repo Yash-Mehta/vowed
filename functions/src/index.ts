@@ -102,10 +102,13 @@ export const sendResetEmail = onCall(
 
 async function getWeddingPushTokens(weddingId: string, excludeUid?: string): Promise<string[]> {
   const snap = await db.collection('weddings').doc(weddingId).collection('members').get();
+  const authorToken = excludeUid
+    ? (snap.docs.find((d) => d.id === excludeUid)?.data().fcmToken as string | null) ?? null
+    : null;
   return snap.docs
     .filter((d) => !excludeUid || d.id !== excludeUid)
     .map((d) => d.data().fcmToken as string | null)
-    .filter((t): t is string => !!t && t.startsWith('ExponentPushToken['));
+    .filter((t): t is string => !!t && t.startsWith('ExponentPushToken[') && t !== authorToken);
 }
 
 async function sendExpoPush(
@@ -113,8 +116,9 @@ async function sendExpoPush(
   title: string,
   body: string
 ): Promise<void> {
-  if (tokens.length === 0) return;
-  const messages = tokens.map((to) => ({ to, title, body, sound: 'default' }));
+  const unique = [...new Set(tokens)];
+  if (unique.length === 0) return;
+  const messages = unique.map((to) => ({ to, title, body, sound: 'default' }));
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
