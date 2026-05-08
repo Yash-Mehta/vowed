@@ -130,14 +130,24 @@ export default function RootLayout() {
           router.replace('/(auth)/profile-setup');
         }
       } else if (userWeddingIds.length > 0) {
-        // Has weddings but no party selected — go to party selection
-        // Allow inAuth so the user can use the invite screen to add another wedding
-        if (!inSelectWedding && !inAuth && !inOnboarding) {
+        // Has weddings but no party selected — go to party selection.
+        // Allow invite/profile-setup/register/verify-email so mid-join flow isn't interrupted.
+        const onMidJoinScreen =
+          segments[1] === 'invite' ||
+          segments[1] === 'profile-setup' ||
+          segments[1] === 'register' ||
+          segments[1] === 'verify-email';
+        if (!inSelectWedding && !inOnboarding && !onMidJoinScreen) {
           router.replace('/select-wedding');
         }
       } else {
-        // No weddings yet — needs to join via invite
-        if (!inAuth && !inOnboarding) {
+        // No weddings yet — needs to join via invite.
+        const onMidJoinScreen =
+          segments[1] === 'invite' ||
+          segments[1] === 'profile-setup' ||
+          segments[1] === 'register' ||
+          segments[1] === 'verify-email';
+        if (!inOnboarding && !onMidJoinScreen) {
           router.replace('/(auth)/invite');
         }
       }
