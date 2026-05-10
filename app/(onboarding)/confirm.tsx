@@ -14,8 +14,7 @@ import { db } from '../../lib/firebase';
 import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { createMember, createUserIndex } from '../../lib/firestore';
-import { saveWeddingId } from '../../lib/secureAuth';
+import { createMember, addWeddingToIndex } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -29,7 +28,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function ConfirmScreen() {
   const router = useRouter();
-  const { setWeddingId, setUserDoc } = useAuthStore();
+  const { setWeddingId, setUserDoc, setUserWeddingIds, userWeddingIds } = useAuthStore();
   const { draft, reset } = useOnboardingStore();
   const [loading, setLoading] = useState(false);
 
@@ -106,9 +105,8 @@ export default function ConfirmScreen() {
         role: 'host',
       });
 
-      await createUserIndex(uid, weddingId);
-      await saveWeddingId(weddingId);
-
+      await addWeddingToIndex(uid, weddingId);
+      setUserWeddingIds([...userWeddingIds, weddingId]);
       setWeddingId(weddingId);
       setUserDoc({
         displayName: draft.ownerName,
