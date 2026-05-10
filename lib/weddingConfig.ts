@@ -32,8 +32,12 @@ export function configFromDoc(data: Record<string, any>): WeddingConfig {
     person1First: data.person1First ?? '',
     person2First: data.person2First ?? '',
     monogramInitials: data.monogramInitials ?? 'Y&V',
-    weddingDate: data.weddingDateISO ? new Date(data.weddingDateISO + 'T12:00:00') : new Date(),
-    firstEventDate: data.firstEventDateISO ? new Date(data.firstEventDateISO + 'T12:00:00') : new Date(),
+    weddingDate: data.weddingDateTimeUTC
+      ? new Date(data.weddingDateTimeUTC)
+      : data.weddingDateISO
+        ? new Date(data.weddingDateISO + 'T12:00:00Z')
+        : new Date(),
+    firstEventDate: data.firstEventDateISO ? new Date(data.firstEventDateISO + 'T00:00:00Z') : new Date(),
     dateStamp: data.dateStamp ?? '',
     shortDate: data.shortDate ?? '',
     displayDate: data.displayDate ?? '',

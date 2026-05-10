@@ -46,6 +46,13 @@ export default function ConfirmScreen() {
     try {
       const weddingId = `${Date.now()}-${uid.slice(0, 6)}`;
 
+      // Combine weddingDateISO + weddingTimeLocal into a UTC ISO string
+      // weddingTimeLocal is the ceremony time in the host's local timezone
+      const localDT = draft.weddingTimeLocal
+        ? new Date(`${draft.weddingDateISO}T${draft.weddingTimeLocal}:00`)
+        : new Date(`${draft.weddingDateISO}T12:00:00`);
+      const weddingDateTimeUTC = localDT.toISOString();
+
       // Create wedding doc
       await setDoc(doc(db, 'weddings', weddingId), {
         weddingId,
@@ -55,6 +62,7 @@ export default function ConfirmScreen() {
         person2First: draft.person2First,
         monogramInitials: draft.monogramInitials,
         weddingDateISO: draft.weddingDateISO,
+        weddingDateTimeUTC,
         firstEventDateISO: draft.firstEventDateISO || draft.weddingDateISO,
         dateStamp: draft.dateStamp,
         shortDate: draft.shortDate,

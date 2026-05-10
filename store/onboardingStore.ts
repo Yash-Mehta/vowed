@@ -13,6 +13,7 @@ export interface OnboardingDraft {
 
   // Step 3 (date-venue)
   weddingDateISO: string;
+  weddingTimeLocal: string;
   firstEventDateISO: string;
   dateStamp: string;
   shortDate: string;
@@ -41,6 +42,7 @@ const DEFAULT: OnboardingDraft = {
   coupleNameFull: '',
   monogramInitials: '',
   weddingDateISO: '',
+  weddingTimeLocal: '',
   firstEventDateISO: '',
   dateStamp: '',
   shortDate: '',

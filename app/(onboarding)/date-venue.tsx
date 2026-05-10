@@ -21,7 +21,7 @@ const MONTHS = [
 
 function formatDateStamp(iso: string): { dateStamp: string; shortDate: string; displayDate: string } {
   try {
-    const d = new Date(iso + 'T12:00:00');
+    const d = new Date(iso + 'T12:00:00Z');
     const month = d.toLocaleString('en-US', { month: 'long' });
     const day = d.getDate();
     const year = d.getFullYear();
@@ -42,11 +42,12 @@ export default function DateVenueScreen() {
   const { draft, update } = useOnboardingStore();
 
   // Parse existing date if available
-  const existingDate = draft.weddingDateISO ? new Date(draft.weddingDateISO + 'T12:00:00') : null;
+  const existingDate = draft.weddingDateISO ? new Date(draft.weddingDateISO + 'T12:00:00Z') : null;
   const [month, setMonth] = useState(existingDate ? existingDate.getMonth() : -1);
   const [day, setDay] = useState(existingDate ? String(existingDate.getDate()) : '');
   const [year, setYear] = useState(existingDate ? String(existingDate.getFullYear()) : '');
-  const [firstDay, setFirstDay] = useState(draft.firstEventDateISO ? String(new Date(draft.firstEventDateISO + 'T12:00:00').getDate()) : '');
+  const [ceremonyTime, setCeremonyTime] = useState(draft.weddingTimeLocal);
+  const [firstDay, setFirstDay] = useState(draft.firstEventDateISO ? String(new Date(draft.firstEventDateISO + 'T12:00:00Z').getDate()) : '');
   const [venue, setVenue] = useState(draft.venue);
   const [venueShort, setVenueShort] = useState(draft.venueShort);
   const [location, setLocation] = useState(draft.location);
@@ -78,6 +79,7 @@ export default function DateVenueScreen() {
     const { dateStamp, shortDate, displayDate } = formatDateStamp(weddingDateISO);
     update({
       weddingDateISO,
+      weddingTimeLocal: ceremonyTime.trim(),
       firstEventDateISO,
       dateStamp,
       shortDate,
@@ -150,6 +152,17 @@ export default function DateVenueScreen() {
             />
           </View>
         </View>
+
+        <Text style={styles.label}>CEREMONY TIME (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={ceremonyTime}
+          onChangeText={setCeremonyTime}
+          placeholder="e.g. 15:00"
+          placeholderTextColor={theme.colors.ink4}
+          keyboardType="numbers-and-punctuation"
+          maxLength={5}
+        />
 
         <Text style={styles.label}>FIRST EVENT DAY (optional)</Text>
         <TextInput

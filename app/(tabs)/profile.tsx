@@ -203,7 +203,7 @@ export default function ProfileScreen() {
           activeOpacity={0.75}>
           <View style={styles.singleCardInner}>
             <Text style={[styles.singleCardTitle, isSingle && styles.singleCardTitleActive]}>
-              Flying solo
+              Single & ready to mingle
             </Text>
             <Text style={styles.singleCardSub}>
               Let your fellow guests know you're available
