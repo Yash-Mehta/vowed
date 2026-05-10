@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vowed.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSCameraUsageDescription": "Vowed uses your camera so you can share photos with your wedding party.",
         "NSPhotoLibraryUsageDescription": "Vowed accesses your photos so you can share them with your wedding party.",
