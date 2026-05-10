@@ -227,6 +227,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: theme.radii.md,
     paddingHorizontal: 16, paddingVertical: 14, fontSize: 16,
     color: theme.colors.ink, backgroundColor: theme.colors.card, fontFamily: theme.fonts.sans,
+    letterSpacing: 0,
   },
   btn: {
     backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill,

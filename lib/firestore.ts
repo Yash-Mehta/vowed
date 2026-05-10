@@ -140,6 +140,11 @@ export async function updateUser(
   await updateMember(weddingId, uid, data);
 }
 
+export async function leaveWedding(uid: string, weddingId: string) {
+  await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
+  await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });
+}
+
 export async function deleteAccount(uid: string, weddingId: string | null) {
   if (weddingId) {
     await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));

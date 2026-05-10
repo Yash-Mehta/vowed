@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
 import { useAuthStore } from '../store/authStore';
-import { getMember, getWeddingPreviews, WeddingPreview } from '../lib/firestore';
+import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../lib/firestore';
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
 import { clearCredentials } from '../lib/secureAuth';
@@ -20,7 +20,7 @@ import { theme } from '../constants/theme';
 
 export default function SelectWeddingScreen() {
   const router = useRouter();
-  const { userWeddingIds, switchWedding } = useAuthStore();
+  const { userWeddingIds, switchWedding, setUserWeddingIds } = useAuthStore();
 
   async function handleSignOut() {
     Alert.alert('Sign out', 'Are you sure?', [
@@ -37,14 +37,41 @@ export default function SelectWeddingScreen() {
   const [joining, setJoining] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userWeddingIds.length === 0) {
+    const uniqueIds = [...new Set(userWeddingIds)];
+    if (uniqueIds.length === 0) {
       setLoading(false);
       return;
     }
-    getWeddingPreviews(userWeddingIds)
+    getWeddingPreviews(uniqueIds)
       .then(setPreviews)
       .finally(() => setLoading(false));
   }, [userWeddingIds]);
+
+  function handleLongPress(item: WeddingPreview) {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    Alert.alert(
+      `Leave ${item.coupleName}?`,
+      'You will be removed from this wedding party. You can rejoin with an invite code.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveWedding(uid, item.weddingId);
+              const updated = userWeddingIds.filter((id) => id !== item.weddingId);
+              setUserWeddingIds(updated);
+              setPreviews((prev) => prev.filter((p) => p.weddingId !== item.weddingId));
+            } catch (e: any) {
+              Alert.alert('Error', e.message ?? 'Could not leave this wedding party.');
+            }
+          },
+        },
+      ]
+    );
+  }
 
   async function handleSelect(weddingId: string) {
     const uid = auth.currentUser?.uid;
@@ -108,6 +135,7 @@ export default function SelectWeddingScreen() {
             <TouchableOpacity
               style={styles.card}
               onPress={() => handleSelect(item.weddingId)}
+              onLongPress={() => handleLongPress(item)}
               activeOpacity={0.8}
               disabled={!!joining}>
               <View style={styles.cardContent}>
