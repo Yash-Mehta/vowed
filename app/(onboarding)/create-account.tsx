@@ -21,14 +21,31 @@ import { theme } from '../../constants/theme';
 
 export default function CreateAccountScreen() {
   const router = useRouter();
-  const { setPendingRole } = useAuthStore();
+  const { setPendingRole, userDoc } = useAuthStore();
   const { update } = useOnboardingStore();
-  const [ownerName, setOwnerName] = useState('');
+
+  const alreadySignedIn = !!auth.currentUser;
+
+  const [ownerName, setOwnerName] = useState(
+    alreadySignedIn ? (userDoc?.displayName ?? '') : ''
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleContinue() {
+  // Already signed in — just collect their name and proceed
+  function handleContinueSignedIn() {
+    if (!ownerName.trim()) {
+      Alert.alert('Required', 'Please enter your name.');
+      return;
+    }
+    setPendingRole('host');
+    update({ ownerName: ownerName.trim() });
+    router.push('/(onboarding)/names');
+  }
+
+  // Not signed in — create or sign in to account first
+  async function handleContinueNewAccount() {
     if (!ownerName.trim() || !email.trim() || !password) return;
     if (password.length < 6) {
       Alert.alert('Password too short', 'Minimum 6 characters.');
@@ -45,9 +62,14 @@ export default function CreateAccountScreen() {
         if (e.code === 'auth/email-already-in-use') {
           try {
             await signInWithEmailAndPassword(auth, email.trim(), password);
-          } catch {
+          } catch (signInError: any) {
+            const isWrongPassword =
+              signInError.code === 'auth/wrong-password' ||
+              signInError.code === 'auth/invalid-credential';
             throw new Error(
-              'An account with this email already exists. Please sign in instead, or use "Forgot password" to reset your password.'
+              isWrongPassword
+                ? 'An account with this email exists. Please sign in with your correct password, or use "Forgot password".'
+                : 'An account with this email already exists. Please sign in instead.'
             );
           }
         } else {
@@ -61,6 +83,54 @@ export default function CreateAccountScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (alreadySignedIn) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.progress}>
+            <View style={[styles.dot, styles.dotActive]} />
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+          </View>
+
+          <Text style={styles.eyebrow}>Step 1 of 4</Text>
+          <Text style={styles.title}>Plan your wedding</Text>
+          <Text style={styles.sub}>
+            You're already signed in. Just confirm your name and we'll set up your wedding.
+          </Text>
+
+          <Text style={styles.label}>YOUR NAME</Text>
+          <TextInput
+            style={styles.input}
+            value={ownerName}
+            onChangeText={setOwnerName}
+            placeholder="e.g. Alex Chen"
+            placeholderTextColor={theme.colors.ink4}
+            autoCapitalize="words"
+            autoFocus
+          />
+
+          <TouchableOpacity
+            style={styles.btn}
+            onPress={handleContinueSignedIn}
+            activeOpacity={0.85}>
+            <Text style={styles.btnText}>Continue</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
   }
 
   return (
@@ -118,7 +188,7 @@ export default function CreateAccountScreen() {
 
         <TouchableOpacity
           style={[styles.btn, loading && styles.btnDisabled]}
-          onPress={handleContinue}
+          onPress={handleContinueNewAccount}
           disabled={loading}
           activeOpacity={0.85}>
           {loading
@@ -157,6 +227,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: theme.radii.md,
     paddingHorizontal: 16, paddingVertical: 14, fontSize: 16,
     color: theme.colors.ink, backgroundColor: theme.colors.card, fontFamily: theme.fonts.sans,
+    letterSpacing: 0,
   },
   btn: {
     backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill,

@@ -162,6 +162,10 @@ export default function InviteScreen() {
           <TouchableOpacity style={styles.createLink} onPress={() => router.push('/(onboarding)/create-account')}>
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+            <Text style={styles.backText}>Go back</Text>
+          </TouchableOpacity>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -295,4 +299,6 @@ const styles = StyleSheet.create({
   createLink: { marginTop: 4, padding: 8 },
   createText: { fontSize: 13, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
   createBold: { color: theme.colors.accentDeep, fontWeight: '600' },
+  backLink: { marginTop: 4, padding: 8 },
+  backText: { fontSize: 13, color: theme.colors.ink4, fontFamily: theme.fonts.sans },
 });

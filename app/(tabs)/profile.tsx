@@ -24,7 +24,7 @@ import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { firebaseUser, userDoc, weddingId, setUserDoc } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId, setUserDoc, setWeddingId } = useAuthStore();
   const [displayName, setDisplayName] = useState(userDoc?.displayName ?? '');
   const [howTheyKnow, setHowTheyKnow] = useState(userDoc?.howTheyKnow ?? '');
   const [isSingle, setIsSingle] = useState(userDoc?.isSingle ?? false);
@@ -226,6 +226,13 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.switchPartyBtn}
+          onPress={() => { setWeddingId(null); }}
+          activeOpacity={0.7}>
+          <Text style={styles.switchPartyText}>Switch wedding party</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
@@ -350,7 +357,9 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { backgroundColor: theme.colors.accentSoft },
   saveBtnText: { color: theme.colors.bg, fontSize: 15, fontWeight: '600', fontFamily: theme.fonts.sans },
-  signOutBtn: { marginTop: 20, alignItems: 'center', paddingVertical: 12 },
+  switchPartyBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12 },
+  switchPartyText: { fontSize: 14, color: theme.colors.accent, fontFamily: theme.fonts.sans, fontWeight: '500' },
+  signOutBtn: { marginTop: 4, alignItems: 'center', paddingVertical: 12 },
   signOutText: { fontSize: 14, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
   legalBtn: { alignItems: 'center', paddingVertical: 8 },
   legalText: { fontSize: 12, color: theme.colors.ink4, fontFamily: theme.fonts.sans, textDecorationLine: 'underline' },

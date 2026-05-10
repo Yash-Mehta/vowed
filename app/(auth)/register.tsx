@@ -41,7 +41,24 @@ export default function RegisterScreen() {
         isNewUser = true;
       } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
-          await signInWithEmailAndPassword(auth, email, password);
+          try {
+            await signInWithEmailAndPassword(auth, email, password);
+          } catch (signInError: any) {
+            const isWrongPassword =
+              signInError.code === 'auth/wrong-password' ||
+              signInError.code === 'auth/invalid-credential';
+            Alert.alert(
+              'Account already exists',
+              isWrongPassword
+                ? 'An account with this email exists. Please sign in with your correct password.'
+                : 'An account with this email exists. Please sign in instead.',
+              [
+                { text: 'Sign in', onPress: () => router.replace('/(auth)/login') },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+            return;
+          }
         } else {
           throw e;
         }

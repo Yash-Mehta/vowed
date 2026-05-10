@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, StyleSheet, Text, View } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { useFonts } from 'expo-font';
 import {
   CormorantGaramond_500Medium,
@@ -10,11 +10,10 @@ import {
 } from '@expo-google-fonts/cormorant-garamond';
 import * as SplashScreen from 'expo-splash-screen';
 import { auth } from '../lib/firebase';
-import { getMember, getUserIndex } from '../lib/firestore';
+import { getUserIndex } from '../lib/firestore';
 import { useAuthStore } from '../store/authStore';
 import { useWeddingConfig } from '../hooks/useWeddingConfig';
-import { registerForPushNotifications } from '../lib/notifications';
-import { tryAutoLogin, clearCredentials, getWeddingId, saveWeddingId } from '../lib/secureAuth';
+import { tryAutoLogin } from '../lib/secureAuth';
 import { theme } from '../constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -25,11 +24,12 @@ export default function RootLayout() {
     setUserDoc,
     setLoading,
     setWeddingId,
+    setUserWeddingIds,
     isLoading,
     firebaseUser,
-    isProfileComplete,
     weddingId,
     pendingWeddingId,
+    userWeddingIds,
   } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
@@ -58,7 +58,6 @@ export default function RootLayout() {
     'CormorantGaramond-MediumItalic': CormorantGaramond_500Medium_Italic,
   });
 
-  // Start wedding config listener whenever weddingId is available
   useWeddingConfig(weddingId);
 
   useEffect(() => {
@@ -70,55 +69,25 @@ export default function RootLayout() {
       setLoading(true);
       setFirebaseUser(user);
       if (user) {
-        // Skip Firestore lookups for unverified users — rules deny access
         if (!user.emailVerified) {
+          setUserWeddingIds([]);
           setWeddingId(null);
           setUserDoc(null);
           setLoading(false);
           return;
         }
-
-        // Resolve weddingId: SecureStore first, then /users index
-        let wId = await getWeddingId();
-        if (!wId) {
-          const idx = await getUserIndex(user.uid);
-          wId = idx?.weddingIds?.[0] ?? null;
-          if (wId) await saveWeddingId(wId);
-        }
-        setWeddingId(wId);
-
-        if (wId) {
-          try {
-            const memberDoc = await getMember(wId, user.uid);
-            if (memberDoc) {
-              setUserDoc(memberDoc);
-              registerForPushNotifications(user.uid, wId).catch(() => {});
-            } else {
-              await clearCredentials();
-              setWeddingId(null);
-              setUserDoc(null);
-            }
-          } catch (e: any) {
-            if (e?.code === 'permission-denied') {
-              await clearCredentials();
-              setWeddingId(null);
-              setUserDoc(null);
-              Alert.alert(
-                'Removed from wedding',
-                "You've been removed from this wedding party. You can join a new one with an invite code."
-              );
-              await signOut(auth);
-            } else {
-              throw e;
-            }
-          }
-        } else {
-          setUserDoc(null);
-        }
+        // Load user index to know which weddings they belong to.
+        // We don't auto-select a wedding — user must choose from the party selection screen.
+        const idx = await getUserIndex(user.uid);
+        const ids = idx?.weddingIds ?? [];
+        setUserWeddingIds(ids);
+        setWeddingId(null);
+        setUserDoc(null);
         setLoading(false);
       } else {
         const loggedIn = await tryAutoLogin();
         if (!loggedIn) {
+          setUserWeddingIds([]);
           setUserDoc(null);
           setWeddingId(null);
           setLoading(false);
@@ -132,6 +101,7 @@ export default function RootLayout() {
     if (isLoading || !fontsLoaded) return;
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
+    const inSelectWedding = segments[0] === 'select-wedding';
 
     const emailVerified = firebaseUser?.emailVerified ?? true;
     const onVerifyScreen = segments[1] === 'verify-email';
@@ -140,16 +110,49 @@ export default function RootLayout() {
       router.replace('/');
     } else if (firebaseUser && !emailVerified && !onVerifyScreen && !inOnboarding) {
       router.replace('/(auth)/verify-email');
-    } else if (firebaseUser && inAuth && emailVerified) {
-      if (isProfileComplete) {
-        playEntryTransition(() => router.replace('/(tabs)/feed'));
-      } else if (segments[1] !== 'profile-setup' && segments[1] !== 'invite') {
-        router.replace(pendingWeddingId ? '/(auth)/profile-setup' : '/(auth)/invite');
+    } else if (firebaseUser && emailVerified) {
+      if (weddingId) {
+        // Party selected — route to tabs
+        if (inAuth || inSelectWedding) {
+          playEntryTransition(() => router.replace('/(tabs)/feed'));
+        }
+      } else if (pendingWeddingId) {
+        // Mid-join: have a pending wedding to set up profile for
+        if (!inAuth && !inOnboarding) {
+          router.replace('/(auth)/profile-setup');
+        } else if (
+          inAuth &&
+          segments[1] !== 'profile-setup' &&
+          segments[1] !== 'invite' &&
+          segments[1] !== 'register' &&
+          segments[1] !== 'verify-email'
+        ) {
+          router.replace('/(auth)/profile-setup');
+        }
+      } else if (userWeddingIds.length > 0) {
+        // Has weddings but no party selected — go to party selection.
+        // Allow invite/profile-setup/register/verify-email so mid-join flow isn't interrupted.
+        const onMidJoinScreen =
+          segments[1] === 'invite' ||
+          segments[1] === 'profile-setup' ||
+          segments[1] === 'register' ||
+          segments[1] === 'verify-email';
+        if (!inSelectWedding && !inOnboarding && !onMidJoinScreen) {
+          router.replace('/select-wedding');
+        }
+      } else {
+        // No weddings yet — needs to join via invite.
+        const onMidJoinScreen =
+          segments[1] === 'invite' ||
+          segments[1] === 'profile-setup' ||
+          segments[1] === 'register' ||
+          segments[1] === 'verify-email';
+        if (!inOnboarding && !onMidJoinScreen) {
+          router.replace('/(auth)/invite');
+        }
       }
-    } else if (firebaseUser && !inOnboarding && emailVerified && !isProfileComplete) {
-      router.replace(pendingWeddingId ? '/(auth)/profile-setup' : '/(auth)/invite');
     }
-  }, [isLoading, fontsLoaded, firebaseUser, isProfileComplete, pendingWeddingId, segments]);
+  }, [isLoading, fontsLoaded, firebaseUser, weddingId, pendingWeddingId, userWeddingIds, segments]);
 
   if (!fontsLoaded) return null;
 

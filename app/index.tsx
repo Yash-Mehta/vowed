@@ -21,23 +21,16 @@ export default function IndexScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() => router.push('/(auth)/invite')}
+          onPress={() => router.push('/(auth)/login')}
           activeOpacity={0.85}>
-          <Text style={styles.primaryBtnText}>I have an invite code</Text>
+          <Text style={styles.primaryBtnText}>Sign in</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryBtn}
-          onPress={() => router.push('/(onboarding)/create-account')}
+          onPress={() => router.push('/(auth)/invite')}
           activeOpacity={0.85}>
-          <Text style={styles.secondaryBtnText}>Plan your wedding</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.linkBtn}
-          onPress={() => router.push('/(auth)/login')}
-          activeOpacity={0.7}>
-          <Text style={styles.linkText}>Already have an account? <Text style={styles.linkBold}>Sign in</Text></Text>
+          <Text style={styles.secondaryBtnText}>Create account</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -48,7 +41,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'space-between', paddingVertical: 80, paddingHorizontal: 32 },
   logoWrap: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   appName: {
-    fontSize: 40,
+    fontSize: 52,
     fontFamily: theme.fonts.serif,
     color: theme.colors.bg,
     letterSpacing: -0.5,
@@ -87,7 +80,4 @@ const styles = StyleSheet.create({
     color: theme.colors.bg,
     fontFamily: theme.fonts.sans,
   },
-  linkBtn: { alignItems: 'center', paddingVertical: 8 },
-  linkText: { fontSize: 13, color: 'rgba(250,246,241,0.65)', fontFamily: theme.fonts.sans },
-  linkBold: { fontWeight: '700', color: theme.colors.bg },
 });

@@ -12,15 +12,16 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, createUserIndex } from '../../lib/firestore';
-import { saveWeddingId } from '../../lib/secureAuth';
+import { createMember, addWeddingToIndex } from '../../lib/firestore';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
-  const { pendingRole: role, pendingWeddingId, setUserDoc, setWeddingId } = useAuthStore();
+  const router = useRouter();
+  const { pendingRole: role, pendingWeddingId, setUserDoc, setPendingWeddingId, setUserWeddingIds, userWeddingIds } = useAuthStore();
   const [displayName, setDisplayName] = useState('');
   const [howTheyKnow, setHowTheyKnow] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -88,10 +89,11 @@ export default function ProfileSetupScreen() {
         isSingle,
       };
       await createMember(pendingWeddingId, uid, memberData);
-      await createUserIndex(uid, pendingWeddingId);
-      await saveWeddingId(pendingWeddingId);
-      setWeddingId(pendingWeddingId);
+      await addWeddingToIndex(uid, pendingWeddingId);
       setUserDoc({ ...memberData, fcmToken: null, createdAt: null });
+      setUserWeddingIds([...userWeddingIds, pendingWeddingId]);
+      setPendingWeddingId(null);
+      router.replace('/select-wedding');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -153,6 +155,10 @@ export default function ProfileSetupScreen() {
 
       <TouchableOpacity style={styles.button} onPress={handleComplete} disabled={loading} activeOpacity={0.85}>
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <Text style={styles.backText}>Go back</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -218,4 +224,6 @@ const styles = StyleSheet.create({
   singleCheck: { fontSize: 11, color: '#fff', fontWeight: '700' },
   button: { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill, padding: 16, alignItems: 'center' },
   buttonText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
+  backBtn: { paddingVertical: 16, alignItems: 'center' },
+  backText: { color: theme.colors.ink3, fontSize: 14, fontFamily: theme.fonts.sans },
 });

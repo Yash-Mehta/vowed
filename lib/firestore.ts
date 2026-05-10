@@ -6,6 +6,8 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -35,6 +37,12 @@ export interface CodeIndexDoc {
     venue: string;
     monogramInitials: string;
   };
+}
+
+export interface WeddingPreview {
+  weddingId: string;
+  coupleName: string;
+  dateStamp: string;
 }
 
 // ── Collection factories ───────────────────────────────────────────────────────
@@ -85,6 +93,26 @@ export async function createUserIndex(uid: string, weddingId: string) {
   });
 }
 
+export async function addWeddingToIndex(uid: string, weddingId: string) {
+  await setDoc(
+    doc(db, 'users', uid),
+    { weddingIds: arrayUnion(weddingId) },
+    { merge: true }
+  );
+}
+
+export async function getWeddingPreviews(weddingIds: string[]): Promise<WeddingPreview[]> {
+  const results = await Promise.all(
+    weddingIds.map(async (weddingId) => {
+      const snap = await getDoc(doc(db, 'weddings', weddingId));
+      if (!snap.exists()) return null;
+      const d = snap.data();
+      return { weddingId, coupleName: d.coupleName ?? '', dateStamp: d.dateStamp ?? '' };
+    })
+  );
+  return results.filter((r): r is WeddingPreview => r !== null);
+}
+
 // ── Invite code lookup ─────────────────────────────────────────────────────────
 
 export async function validateInviteCode(
@@ -112,11 +140,16 @@ export async function updateUser(
   await updateMember(weddingId, uid, data);
 }
 
+export async function leaveWedding(uid: string, weddingId: string) {
+  await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
+  await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });
+}
+
 export async function deleteAccount(uid: string, weddingId: string | null) {
-  // Delete member doc
   if (weddingId) {
     await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
+    await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });
+  } else {
+    await deleteDoc(doc(db, 'users', uid));
   }
-  // Delete user index
-  await deleteDoc(doc(db, 'users', uid));
 }

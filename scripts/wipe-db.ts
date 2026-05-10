@@ -2,16 +2,37 @@ import * as admin from 'firebase-admin';
 import * as path from 'path';
 
 const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
-admin.initializeApp({
-  credential: admin.credential.cert(keyPath),
-  storageBucket: 'our-day-39d9d.firebasestorage.app',
-});
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(keyPath),
+    storageBucket: 'our-day-39d9d.firebasestorage.app',
+  });
+}
 const db = admin.firestore();
 const storage = admin.storage();
 
-const WEDDING_ID = 'seed-wedding-001';
-const GUEST_CODE = 'VOWED-GUEST';
-const HOST_CODE  = 'VOWED-HOST';
+const SEED_WEDDINGS = [
+  { id: 'seed-wedding-001', guestCode: 'VOWED-GUEST',  hostCode: 'VOWED-HOST'  },
+  { id: 'seed-wedding-002', guestCode: 'VOWED2-GUEST', hostCode: 'VOWED2-HOST' },
+];
+
+const SEED_EMAILS = [
+  // wedding-001
+  'james.carter@example.com',
+  'sophia.lane@example.com',
+  'ethan.brooks@example.com',
+  'maya.patel@example.com',
+  'lucas.wright@example.com',
+  'chloe.morgan@example.com',
+  'noah.davis@example.com',
+  // wedding-002
+  'emma.shaw@example.com',
+  'liam.chen@example.com',
+  'ava.jones@example.com',
+  'oliver.park@example.com',
+  // empty test user
+  'test.empty@example.com',
+];
 
 async function deleteSubcollection(parent: string, colId: string) {
   let deleted = 0;
@@ -38,44 +59,41 @@ async function deleteStorageFolder(prefix: string) {
   }
 }
 
-async function main() {
-  console.log(`Wiping seed wedding (${WEDDING_ID})...\n`);
+async function wipeWedding(id: string, guestCode: string, hostCode: string) {
+  console.log(`\nWiping ${id}...`);
+  const weddingPath = `weddings/${id}`;
 
-  // Subcollections
-  const weddingPath = `weddings/${WEDDING_ID}`;
   await deleteSubcollection(weddingPath, 'members');
   await deleteSubcollection(weddingPath, 'schedule');
 
-  // Posts and their subcollections
   const postsSnap = await db.collection(`${weddingPath}/posts`).get();
   for (const postDoc of postsSnap.docs) {
     await deleteSubcollection(`${weddingPath}/posts/${postDoc.id}`, 'comments');
     await deleteSubcollection(`${weddingPath}/posts/${postDoc.id}`, 'likes');
     await postDoc.ref.delete();
   }
-  if (postsSnap.size) console.log(`  deleted ${postsSnap.size} posts (with comments/likes)`);
+  if (postsSnap.size) console.log(`  deleted ${postsSnap.size} posts`);
 
-  // Wedding doc
   await db.doc(weddingPath).delete();
-  console.log(`  deleted weddings/${WEDDING_ID}`);
+  console.log(`  deleted weddings/${id}`);
 
-  // Invite code docs
-  await db.doc(`weddingsByCode/${GUEST_CODE}`).delete();
-  await db.doc(`weddingsByCode/${HOST_CODE}`).delete();
-  console.log(`  deleted weddingsByCode/${GUEST_CODE}, ${HOST_CODE}`);
+  await db.doc(`weddingsByCode/${guestCode}`).delete();
+  await db.doc(`weddingsByCode/${hostCode}`).delete();
+  console.log(`  deleted invite codes ${guestCode}, ${hostCode}`);
 
-  // Delete only seed users (members of seed wedding)
-  const seedEmails = [
-    'james.carter@example.com',
-    'sophia.lane@example.com',
-    'ethan.brooks@example.com',
-    'maya.patel@example.com',
-    'lucas.wright@example.com',
-    'chloe.morgan@example.com',
-    'noah.davis@example.com',
-  ];
+  await deleteStorageFolder(`weddings/${id}/`);
+}
+
+async function main() {
+  console.log('Wiping all seed data...');
+
+  for (const w of SEED_WEDDINGS) {
+    await wipeWedding(w.id, w.guestCode, w.hostCode);
+  }
+
+  // Delete seed auth users + their index docs
   const uids: string[] = [];
-  for (const email of seedEmails) {
+  for (const email of SEED_EMAILS) {
     try {
       const u = await admin.auth().getUserByEmail(email);
       uids.push(u.uid);
@@ -84,13 +102,10 @@ async function main() {
   }
   if (uids.length) {
     await admin.auth().deleteUsers(uids);
-    console.log(`  deleted ${uids.length} seed auth users`);
+    console.log(`\n  deleted ${uids.length} seed auth users`);
   }
 
-  // Storage
-  await deleteStorageFolder(`weddings/${WEDDING_ID}/`);
-
-  console.log('\nDone. Seed data wiped.');
+  console.log('\nDone. All seed data wiped.');
   process.exit(0);
 }
 
