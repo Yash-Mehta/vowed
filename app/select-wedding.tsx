@@ -129,7 +129,7 @@ export default function SelectWeddingScreen() {
                 style={styles.addRow}
                 onPress={() => router.push('/(auth)/invite')}
                 activeOpacity={0.7}>
-                <Text style={styles.addRowText}>+ Add another wedding party</Text>
+                <Text style={styles.addRowText}>+ Add a wedding party</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
                 <Text style={styles.signOutText}>Sign out</Text>
