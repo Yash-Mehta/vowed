@@ -18,9 +18,11 @@ import {
   onSnapshot,
   addDoc,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../store/authStore';
+import { onSnapshotError } from '../lib/firestore';
 import { Avatar } from './Avatar';
 import { theme } from '../constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +33,7 @@ interface Comment {
   authorName: string;
   authorPhotoURL: string | null;
   text: string;
-  createdAt: any;
+  createdAt: Timestamp;
 }
 
 interface Props {
@@ -83,7 +85,7 @@ export function CommentSheet({ postId, onClose }: Props) {
     const unsub = onSnapshot(q, (snap) => {
       setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Comment)));
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [postId, weddingId]);
 

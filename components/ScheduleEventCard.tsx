@@ -1,10 +1,11 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { Timestamp } from 'firebase/firestore';
 import { theme } from '../constants/theme';
 
 export interface ScheduleEvent {
   id: string;
   title: string;
-  startTime: any;
+  startTime: Timestamp | null;
   location: string;
   description: string | null;
   order: number;

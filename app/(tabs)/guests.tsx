@@ -3,7 +3,7 @@ import { FlatList, TouchableOpacity, Text, View, StyleSheet, ActivityIndicator }
 import { onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { membersCol, UserDoc } from '../../lib/firestore';
+import { membersCol, UserDoc, onSnapshotError } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
@@ -24,7 +24,7 @@ export default function GuestsScreen() {
     const unsub = onSnapshot(membersCol(weddingId), (snap) => {
       setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
       setLoading(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 

@@ -3,7 +3,7 @@ import { FlatList, Text, StyleSheet, ActivityIndicator, View } from 'react-nativ
 import { query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
-import { scheduleCol } from '../../lib/firestore';
+import { scheduleCol, onSnapshotError } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { ScheduleEventCard, ScheduleEvent } from '../../components/ScheduleEventCard';
 import { EmptyState } from '../../components/EmptyState';
@@ -46,7 +46,7 @@ export default function ScheduleScreen() {
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ScheduleEvent)));
       setLoading(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 

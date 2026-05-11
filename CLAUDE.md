@@ -176,3 +176,60 @@ Secrets (`GMAIL_USER`, `GMAIL_APP_PASS`) are managed via Firebase Secret Manager
 ```bash
 firebase deploy --only firestore:rules,storage
 ```
+
+---
+
+## Periodic Codebase Cleanup
+
+Run when prompted ("run cleanup"). Branch off main as `chore/codebase-cleanup`, work through all tracks, then commit. No tag needed — patch-level at most. Ask the user if they want a PR/merge after.
+
+### Track 1 — Dead exports in lib/
+
+```bash
+npx knip
+```
+
+Verify each hit with `grep -r <name> .` before removing. Key files: `lib/firebase.ts`, `lib/firestore.ts`, `lib/secureAuth.ts`.
+
+### Track 2 — Dead components
+
+```bash
+grep -r "<ComponentName>" --include="*.tsx" --include="*.ts" .
+```
+
+If zero imports outside the file itself, delete it.
+
+### Track 3 — Strengthen `any` types
+
+- `createdAt: any` → `Timestamp` (import from `firebase/firestore`)
+- `startTime: any` → `Timestamp | null`
+- `config: any` in component props → `WeddingConfig | null` (import from `lib/weddingConfig`)
+
+Files to check: `components/PostCard.tsx`, `components/ScheduleEventCard.tsx`, `components/CommentSheet.tsx`, `app/(tabs)/manage.tsx`
+
+When changing `config: any` → `WeddingConfig | null`, fix any `{ ...config }` spreads → `{ ...(config ?? {}), ...rest }`.
+
+### Track 4 — Deduplicate onSnapshot error handlers
+
+`lib/firestore.ts` exports `onSnapshotError`. Search for any remaining inline copies:
+
+```bash
+grep -rn "permission-denied" app/ components/ hooks/
+```
+
+Replace each `(err) => { if (err.code !== 'permission-denied') console.warn(err); }` with `onSnapshotError` and add it to the import from `lib/firestore`.
+
+### Track 5 — Circular dependency check
+
+```bash
+npx madge --circular --extensions ts,tsx .
+```
+
+No action needed if output is empty.
+
+### Track 6 — Commit
+
+```bash
+git add <changed files>
+git commit -m "chore: codebase cleanup — types, dead code, error handler dedup"
+```

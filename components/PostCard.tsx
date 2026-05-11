@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
+import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
@@ -14,7 +15,7 @@ export interface Post {
   caption: string;
   likeCount: number;
   commentCount: number;
-  createdAt: any;
+  createdAt: Timestamp | null;
   pinned?: boolean;
 }
 

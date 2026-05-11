@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   arrayUnion,
   arrayRemove,
+  FirestoreError,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -43,6 +44,11 @@ export interface WeddingPreview {
   weddingId: string;
   coupleName: string;
   dateStamp: string;
+}
+
+// Suppress permission-denied errors from Firestore listeners (expected when not a member)
+export function onSnapshotError(err: FirestoreError) {
+  if (err.code !== 'permission-denied') console.warn(err);
 }
 
 // ── Collection factories ───────────────────────────────────────────────────────
@@ -86,13 +92,6 @@ export async function getUserIndex(uid: string): Promise<UserIndexDoc | null> {
   return snap.exists() ? (snap.data() as UserIndexDoc) : null;
 }
 
-export async function createUserIndex(uid: string, weddingId: string) {
-  await setDoc(doc(db, 'users', uid), {
-    weddingIds: [weddingId],
-    createdAt: serverTimestamp(),
-  });
-}
-
 export async function addWeddingToIndex(uid: string, weddingId: string) {
   await setDoc(
     doc(db, 'users', uid),
@@ -122,22 +121,6 @@ export async function validateInviteCode(
   if (!snap.exists()) return false;
   const data = snap.data() as CodeIndexDoc;
   return { weddingId: data.weddingId, role: data.role, preview: data.preview };
-}
-
-// ── Legacy helpers (used by profile.tsx + manage.tsx avatar/member updates) ───
-
-export async function getUser(uid: string): Promise<UserDoc | null> {
-  const idx = await getUserIndex(uid);
-  if (!idx?.weddingIds?.length) return null;
-  return getMember(idx.weddingIds[0], uid);
-}
-
-export async function updateUser(
-  uid: string,
-  data: Partial<UserDoc>,
-  weddingId: string
-) {
-  await updateMember(weddingId, uid, data);
 }
 
 export async function leaveWedding(uid: string, weddingId: string) {
