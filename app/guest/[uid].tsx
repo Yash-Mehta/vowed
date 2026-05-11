@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { UserDoc } from '../../lib/firestore';
+import { UserDoc, onSnapshotError } from '../../lib/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
@@ -21,7 +21,7 @@ export default function GuestProfileScreen() {
     const unsub = onSnapshot(doc(db, 'weddings', weddingId, 'members', uid), (snap) => {
       setUser(snap.exists() ? (snap.data() as UserDoc) : null);
       setLoading(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [uid, weddingId]);
 

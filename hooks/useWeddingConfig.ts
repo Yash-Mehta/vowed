@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { configFromDoc } from '../lib/weddingConfig';
+import { onSnapshotError } from '../lib/firestore';
 import { useWeddingStore } from '../store/weddingStore';
 
 export function useWeddingConfig(weddingId: string | null) {
@@ -20,7 +21,7 @@ export function useWeddingConfig(weddingId: string | null) {
         setConfig(null);
       }
       setLoading(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 }

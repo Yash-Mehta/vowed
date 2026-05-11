@@ -13,14 +13,6 @@ export async function saveCredentials(email: string, password: string) {
   ]);
 }
 
-export async function saveWeddingId(weddingId: string) {
-  await SecureStore.setItemAsync(WEDDING_KEY, weddingId);
-}
-
-export async function getWeddingId(): Promise<string | null> {
-  return SecureStore.getItemAsync(WEDDING_KEY);
-}
-
 export async function clearCredentials() {
   await Promise.all([
     SecureStore.deleteItemAsync(EMAIL_KEY),

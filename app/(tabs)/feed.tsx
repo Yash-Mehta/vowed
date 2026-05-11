@@ -25,7 +25,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
-import { postsCol } from '../../lib/firestore';
+import { postsCol, onSnapshotError } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { PostCard, Post } from '../../components/PostCard';
 import { AnnouncementCard } from '../../components/AnnouncementCard';
@@ -53,7 +53,7 @@ export default function FeedScreen() {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post));
       setPosts(all.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)));
       setLoading(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 
@@ -70,7 +70,7 @@ export default function FeedScreen() {
           else next.delete(post.id);
           return next;
         });
-      }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+      }, onSnapshotError);
       unsubscribers.push(unsub);
     });
     return () => unsubscribers.forEach((u) => u());

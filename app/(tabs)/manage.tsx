@@ -31,7 +31,8 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage } from '../../lib/firebase';
-import { UserDoc, membersCol, scheduleCol } from '../../lib/firestore';
+import { UserDoc, membersCol, scheduleCol, onSnapshotError } from '../../lib/firestore';
+import { WeddingConfig } from '../../lib/weddingConfig';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
@@ -76,7 +77,7 @@ interface ScheduleItem {
   location: string;
   description: string | null;
   order: number;
-  startTime: any;
+  startTime: Timestamp | null;
   icon?: string;
   color?: EventColor;
   dress?: string;
@@ -211,7 +212,7 @@ export default function ManageScreen() {
     const unsub = onSnapshot(membersCol(weddingId), (snap) => {
       setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
       setLoadingGuests(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 
@@ -221,7 +222,7 @@ export default function ManageScreen() {
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ScheduleItem)));
       setLoadingSchedule(false);
-    }, (err) => { if (err.code !== 'permission-denied') console.warn(err); });
+    }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 
@@ -487,7 +488,7 @@ export default function ManageScreen() {
 
 // ── Wedding Details Editor ────────────────────────────────────────────────────
 
-function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null; config: any }) {
+function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null; config: WeddingConfig | null }) {
   const [person1, setPerson1] = useState(config?.person1First ?? '');
   const [person2, setPerson2] = useState(config?.person2First ?? '');
   const [venue, setVenue] = useState(config?.venue ?? '');
@@ -566,7 +567,7 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
       if (guestCode) await updateDoc(doc(db, 'weddingsByCode', guestCode), { preview }).catch(() => {});
       if (hostCode) await updateDoc(doc(db, 'weddingsByCode', hostCode), { preview }).catch(() => {});
       // Refresh store
-      useWeddingStore.getState().setConfig(configFromDoc({ ...config, ...updatedFields, weddingId }));
+      useWeddingStore.getState().setConfig(configFromDoc({ ...(config ?? {}), ...updatedFields, weddingId }));
       Alert.alert('Saved', 'Wedding details updated.');
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not save changes.');
@@ -697,7 +698,7 @@ const dStyles = StyleSheet.create({
 
 // ── Invite Codes ─────────────────────────────────────────────────────────────
 
-function InviteCodes({ config }: { config: any }) {
+function InviteCodes({ config }: { config: WeddingConfig | null }) {
   const guestCode: string = config?.guestInviteCode ?? '—';
   const hostCode: string = config?.hostInviteCode ?? '—';
 
@@ -752,7 +753,7 @@ const icStyles = StyleSheet.create({
 
 // ── Logo / monogram settings ──────────────────────────────────────────────────
 
-function LogoSettings({ weddingId, config }: { weddingId: string | null; config: any }) {
+function LogoSettings({ weddingId, config }: { weddingId: string | null; config: WeddingConfig | null }) {
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const coverPhotoURL: string | null = config?.coverPhotoURL ?? null;
