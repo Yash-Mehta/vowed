@@ -176,7 +176,13 @@ export default function InviteScreen() {
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backLink} onPress={() => {
+            setPendingWeddingId(null);
+            setPreview(null);
+            setPendingResult(null);
+            previewAnim.setValue(0);
+            router.back();
+          }}>
             <Text style={styles.backText}>Go back</Text>
           </TouchableOpacity>
         </Animated.View>

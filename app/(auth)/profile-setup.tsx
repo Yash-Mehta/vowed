@@ -167,7 +167,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => {
+        setPendingWeddingId(null);
+        router.replace('/(auth)/invite');
+      }} activeOpacity={0.7}>
         <Text style={styles.backText}>Go back</Text>
       </TouchableOpacity>
     </ScrollView>
