@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     color: theme.colors.ink,
     fontFamily: theme.fonts.serifItalic,
   },
-  primaryTitle: { fontFamily: theme.fonts.sans, fontWeight: '700', fontSize: 20 },
+  primaryTitle: { fontFamily: theme.fonts.serifMediumItalic, fontStyle: 'italic', fontSize: 20 },
   location: { fontSize: 12, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
   dressBadge: {
     alignSelf: 'flex-start',
