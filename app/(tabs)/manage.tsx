@@ -22,7 +22,6 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  addDoc,
   writeBatch,
   query,
   orderBy,
@@ -285,17 +284,32 @@ export default function ManageScreen() {
     setAddingEvent(true);
     try {
       const startTime = parseTimeToTimestamp(newFields.time, newFields.day);
-      await addDoc(scheduleCol(weddingId), {
+      const newRef = doc(collection(db, 'weddings', weddingId, 'schedule'));
+      const newData = {
         title: newFields.title.trim(),
         location: newFields.location.trim(),
         description: newFields.description.trim() || null,
-        order: events.length,
         startTime,
         icon: newFields.icon.trim() || '✦',
         color: newFields.color,
         dress: newFields.dress.trim() || null,
         primary: newFields.primary,
+      };
+      const merged = [...events, { id: newRef.id, ...newData, order: 0 }];
+      merged.sort((a, b) => {
+        const at = a.startTime?.toDate?.()?.getTime() ?? Infinity;
+        const bt = b.startTime?.toDate?.()?.getTime() ?? Infinity;
+        return at - bt;
       });
+      const batch = writeBatch(db);
+      merged.forEach((item, i) => {
+        if (item.id === newRef.id) {
+          batch.set(newRef, { ...newData, order: i });
+        } else {
+          batch.update(doc(db, 'weddings', weddingId, 'schedule', item.id), { order: i });
+        }
+      });
+      await batch.commit();
       setNewFields(BLANK_EVENT);
     } catch {
       Alert.alert('Error', 'Could not add event.');
@@ -335,6 +349,19 @@ export default function ManageScreen() {
         dress: editFields.dress.trim() || null,
         primary: editFields.primary,
       });
+      const updated = events.map((e) =>
+        e.id === editingId ? { ...e, startTime: startTime ?? null } : e
+      );
+      updated.sort((a, b) => {
+        const at = a.startTime?.toDate?.()?.getTime() ?? Infinity;
+        const bt = b.startTime?.toDate?.()?.getTime() ?? Infinity;
+        return at - bt;
+      });
+      const reorderBatch = writeBatch(db);
+      updated.forEach((item, i) =>
+        reorderBatch.update(doc(db, 'weddings', weddingId, 'schedule', item.id), { order: i })
+      );
+      await reorderBatch.commit();
       setEditingId(null);
     } catch {
       Alert.alert('Error', 'Could not save changes.');
