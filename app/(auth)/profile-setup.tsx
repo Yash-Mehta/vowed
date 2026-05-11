@@ -79,7 +79,12 @@ export default function ProfileSetupScreen() {
     if (!uid) return;
     setLoading(true);
     try {
-      const existing = await getMember(pendingWeddingId, uid);
+      let existing = null;
+      try {
+        existing = await getMember(pendingWeddingId, uid);
+      } catch {
+        // Permission denied — not yet a member, proceed with join
+      }
       if (existing) {
         // Already a member — never overwrite, especially don't demote a host to guest
         await addWeddingToIndex(uid, pendingWeddingId);
