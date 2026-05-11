@@ -109,14 +109,19 @@ async function createUser(email: string) {
 async function seed() {
   console.log('Seeding database...\n');
 
+  // ── Host (created first so ownerUid is available for the wedding doc) ─────
+  const hostUser = await createUser(HOST.email);
+
   // ── Wedding document ──────────────────────────────────────────────────────
   await db.doc(`weddings/${WEDDING_ID}`).set({
+    weddingId: WEDDING_ID,
     coupleName: 'James & Olivia',
     coupleNameFull: 'James Carter & Olivia Bennett',
     person1First: 'James',
     person2First: 'Olivia',
-    monogramInitials: 'J&O',
+    monogramInitials: 'JO',
     weddingDateISO: '2026-09-05',
+    weddingDateTimeUTC: '2026-09-05T15:30:00.000Z',
     firstEventDateISO: '2026-09-03',
     dateStamp: 'September 5, 2026',
     shortDate: 'Sep 5',
@@ -133,17 +138,17 @@ async function seed() {
     coverPhotoURL: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?w=1200',
     guestInviteCode: GUEST_CODE,
     hostInviteCode: HOST_CODE,
+    ownerUid: hostUser.uid,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
   console.log('✓ Wedding document');
 
   // ── Invite codes ──────────────────────────────────────────────────────────
-  const preview = { coupleName: 'James & Olivia', dateStamp: 'September 5, 2026', venue: 'The Rosewood Estate · Tuscany', monogramInitials: 'J&O' };
+  const preview = { coupleName: 'James & Olivia', dateStamp: 'September 5, 2026', venue: 'Rosewood Estate', monogramInitials: 'JO' };
   await db.doc(`weddingsByCode/${GUEST_CODE}`).set({ weddingId: WEDDING_ID, role: 'guest', preview });
   await db.doc(`weddingsByCode/${HOST_CODE}`).set({ weddingId: WEDDING_ID, role: 'host', preview });
   console.log('✓ Invite codes');
 
-  // ── Host ──────────────────────────────────────────────────────────────────
-  const hostUser = await createUser(HOST.email);
   await db.doc(`weddings/${WEDDING_ID}/members/${hostUser.uid}`).set({
     displayName: HOST.displayName,
     photoURL: HOST.avatar,
@@ -191,14 +196,18 @@ async function seed() {
   for (let i = 0; i < POSTS.length; i++) {
     const p = POSTS[i];
     const postRef = db.collection(`weddings/${WEDDING_ID}/posts`).doc();
+    const commentCount = COMMENTS[i]?.length ?? 0;
+    const likeCount = guestUids.filter((_, idx) => (i + idx) % 2 === 0).length;
     await postRef.set({
       type: p.type,
       caption: p.caption,
-      imageURL: p.imageURL,
+      photoURL: p.imageURL,
       authorId: hostUser.uid,
       authorName: HOST.displayName,
       authorPhotoURL: HOST.avatar,
       pinned: p.pinned,
+      likeCount,
+      commentCount,
       createdAt: admin.firestore.Timestamp.fromMillis(Date.now() - (POSTS.length - i) * 3600000),
     });
 

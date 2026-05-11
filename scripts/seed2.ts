@@ -58,14 +58,18 @@ async function createUser(email: string) {
 async function seed2() {
   console.log('Seeding seed-wedding-002...\n');
 
+  // ── Host (created first so ownerUid is available for the wedding doc) ─────
+  const hostUser = await createUser(HOST.email);
+
   await db.doc(`weddings/${WEDDING_ID}`).set({
     weddingId: WEDDING_ID,
     coupleName: 'Emma & Ryan',
     coupleNameFull: 'Emma Shaw & Ryan Torres',
     person1First: 'Emma',
     person2First: 'Ryan',
-    monogramInitials: 'E&R',
+    monogramInitials: 'ER',
     weddingDateISO: '2026-07-18',
+    weddingDateTimeUTC: '2026-07-18T15:00:00.000Z',
     firstEventDateISO: '2026-07-17',
     dateStamp: 'July 18, 2026',
     shortDate: 'Jul 18',
@@ -82,23 +86,20 @@ async function seed2() {
     coverPhotoURL: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200',
     guestInviteCode: GUEST_CODE,
     hostInviteCode: HOST_CODE,
+    ownerUid: hostUser.uid,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    ownerUid: '',
   });
   console.log('✓ Wedding document');
 
   const preview = {
     coupleName: 'Emma & Ryan',
     dateStamp: 'July 18, 2026',
-    venue: 'The Glass House · Lake Como',
-    monogramInitials: 'E&R',
+    venue: 'Glass House',
+    monogramInitials: 'ER',
   };
   await db.doc(`weddingsByCode/${GUEST_CODE}`).set({ weddingId: WEDDING_ID, role: 'guest', preview });
   await db.doc(`weddingsByCode/${HOST_CODE}`).set({ weddingId: WEDDING_ID, role: 'host', preview });
   console.log('✓ Invite codes');
-
-  // Host
-  const hostUser = await createUser(HOST.email);
   await db.doc(`weddings/${WEDDING_ID}/members/${hostUser.uid}`).set({
     displayName: HOST.displayName,
     photoURL: HOST.avatar,
@@ -135,18 +136,20 @@ async function seed2() {
 
   // A couple of posts
   const posts = [
-    { caption: 'Lake Como in July — we still can\'t believe this is happening 💙', imageURL: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800', pinned: true },
-    { caption: 'Ceremony rehearsal done. See you all tomorrow! 🥂', imageURL: null, pinned: false },
+    { caption: 'Lake Como in July — we still can\'t believe this is happening 💙', photoURL: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800', pinned: true },
+    { caption: 'Ceremony rehearsal done. See you all tomorrow! 🥂', photoURL: null, pinned: false },
   ];
   for (const p of posts) {
     await db.collection(`weddings/${WEDDING_ID}/posts`).add({
-      type: p.imageURL ? 'photo' : 'announcement',
+      type: p.photoURL ? 'photo' : 'announcement',
       caption: p.caption,
-      imageURL: p.imageURL,
+      photoURL: p.photoURL,
       authorId: hostUser.uid,
       authorName: HOST.displayName,
       authorPhotoURL: HOST.avatar,
       pinned: p.pinned,
+      likeCount: 0,
+      commentCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }

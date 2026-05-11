@@ -456,6 +456,7 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
   const [person1, setPerson1] = useState(config?.person1First ?? '');
   const [person2, setPerson2] = useState(config?.person2First ?? '');
   const [venue, setVenue] = useState(config?.venue ?? '');
+  const [venueShort, setVenueShort] = useState(config?.venueShort ?? '');
   const [location, setLocation] = useState(config?.location ?? '');
   const [hashtag, setHashtag] = useState(config?.hashtag ?? '');
   const [registryUrl, setRegistryUrl] = useState(config?.registryUrl ?? '');
@@ -463,6 +464,10 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
     config?.weddingDate instanceof Date ? config.weddingDate : new Date()
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [ceremonyTime, setCeremonyTime] = useState(
+    config?.weddingDate instanceof Date ? dateToTimeString(config.weddingDate) : ''
+  );
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function deriveDateFields(d: Date) {
@@ -484,6 +489,11 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
     if (date) setWeddingDate(date);
   }
 
+  function onTimeChange(_: any, date?: Date) {
+    if (Platform.OS === 'android') setShowTimePicker(false);
+    if (date) setCeremonyTime(dateToTimeString(date));
+  }
+
   async function handleSave() {
     if (!weddingId) return;
     setSaving(true);
@@ -492,14 +502,25 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
       const p2 = person2.trim();
       const coupleName = p1 && p2 ? `${p1} & ${p2}` : config?.coupleName ?? '';
       const dateFields = deriveDateFields(weddingDate);
+      const combined = new Date(weddingDate);
+      if (ceremonyTime) {
+        const t = timeStringToDate(ceremonyTime);
+        combined.setHours(t.getHours(), t.getMinutes(), 0, 0);
+      } else {
+        combined.setHours(12, 0, 0, 0);
+      }
       const updatedFields: Record<string, any> = {
         person1First: p1,
         person2First: p2,
         coupleName,
+        coupleNameFull: coupleName,
+        monogramInitials: p1 && p2 ? `${p1[0]}${p2[0]}` : config?.monogramInitials ?? '',
         venue: venue.trim(),
+        venueShort: venueShort.trim() || venue.trim(),
         location: location.trim(),
         hashtag: hashtag.trim(),
         registryUrl: registryUrl.trim() || null,
+        weddingDateTimeUTC: combined.toISOString(),
         ...dateFields,
       };
       await updateDoc(doc(db, 'weddings', weddingId), updatedFields);
@@ -552,8 +573,8 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
       {Platform.OS === 'android' && showDatePicker && (
         <DateTimePicker value={weddingDate} mode="date" display="default" onChange={onDateChange} />
       )}
-      {Platform.OS === 'ios' && (
-        <Modal visible={showDatePicker} transparent animationType="slide">
+      {Platform.OS === 'ios' && showDatePicker && (
+        <Modal visible transparent animationType="slide">
           <View style={fStyles.pickerOverlay}>
             <View style={fStyles.pickerSheet}>
               <View style={fStyles.pickerHeader}>
@@ -567,8 +588,36 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
         </Modal>
       )}
 
+      <Text style={dStyles.fieldLabel}>CEREMONY TIME</Text>
+      <TouchableOpacity style={[dStyles.input, dStyles.dateBtn]} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+        <Text style={[dStyles.dateBtnText, !ceremonyTime && { color: theme.colors.ink4 }]}>
+          {ceremonyTime || 'Select time'}
+        </Text>
+      </TouchableOpacity>
+
+      {Platform.OS === 'android' && showTimePicker && (
+        <DateTimePicker value={timeStringToDate(ceremonyTime)} mode="time" display="default" onChange={onTimeChange} />
+      )}
+      {Platform.OS === 'ios' && showTimePicker && (
+        <Modal visible transparent animationType="slide">
+          <View style={fStyles.pickerOverlay}>
+            <View style={fStyles.pickerSheet}>
+              <View style={fStyles.pickerHeader}>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                  <Text style={fStyles.pickerDone}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker value={timeStringToDate(ceremonyTime)} mode="time" display="spinner" onChange={onTimeChange} textColor={theme.colors.ink} style={{ height: 180 }} />
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <Text style={dStyles.fieldLabel}>VENUE</Text>
       <TextInput style={dStyles.input} value={venue} onChangeText={setVenue} placeholder="Full venue name" placeholderTextColor={theme.colors.ink4} />
+
+      <Text style={dStyles.fieldLabel}>SHORT VENUE NAME</Text>
+      <TextInput style={dStyles.input} value={venueShort} onChangeText={setVenueShort} placeholder="e.g. Hard Rock Punta Cana" placeholderTextColor={theme.colors.ink4} />
 
       <Text style={dStyles.fieldLabel}>LOCATION</Text>
       <TextInput style={dStyles.input} value={location} onChangeText={setLocation} placeholder="City, Country" placeholderTextColor={theme.colors.ink4} />
