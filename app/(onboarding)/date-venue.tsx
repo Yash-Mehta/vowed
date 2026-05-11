@@ -9,10 +9,31 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Modal,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { theme } from '../../constants/theme';
+
+function timeToPickerDate(hhmm: string): Date {
+  const d = new Date();
+  const parts = hhmm.split(':').map(Number);
+  d.setHours(parts[0] ?? 12, parts[1] ?? 0, 0, 0);
+  return d;
+}
+
+function pickerDateToHHMM(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatDisplayTime(hhmm: string): string {
+  const parts = hhmm.split(':').map(Number);
+  const h = parts[0] ?? 12;
+  const m = parts[1] ?? 0;
+  const period = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${period}`;
+}
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -46,7 +67,8 @@ export default function DateVenueScreen() {
   const [month, setMonth] = useState(existingDate ? existingDate.getMonth() : -1);
   const [day, setDay] = useState(existingDate ? String(existingDate.getDate()) : '');
   const [year, setYear] = useState(existingDate ? String(existingDate.getFullYear()) : '');
-  const [ceremonyTime, setCeremonyTime] = useState(draft.weddingTimeLocal);
+  const [ceremonyTime, setCeremonyTime] = useState(draft.weddingTimeLocal); // "HH:MM" 24h
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [firstDay, setFirstDay] = useState(draft.firstEventDateISO ? String(new Date(draft.firstEventDateISO + 'T12:00:00Z').getDate()) : '');
   const [venue, setVenue] = useState(draft.venue);
   const [venueShort, setVenueShort] = useState(draft.venueShort);
@@ -154,15 +176,47 @@ export default function DateVenueScreen() {
         </View>
 
         <Text style={styles.label}>CEREMONY TIME (optional)</Text>
-        <TextInput
-          style={styles.input}
-          value={ceremonyTime}
-          onChangeText={setCeremonyTime}
-          placeholder="e.g. 15:00"
-          placeholderTextColor={theme.colors.ink4}
-          keyboardType="numbers-and-punctuation"
-          maxLength={5}
-        />
+        <TouchableOpacity
+          style={[styles.input, styles.timeBtn]}
+          onPress={() => setShowTimePicker(true)}
+          activeOpacity={0.7}>
+          <Text style={[styles.input, styles.timeBtnText, !ceremonyTime && { color: theme.colors.ink4 }]}>
+            {ceremonyTime ? formatDisplayTime(ceremonyTime) : 'Select time'}
+          </Text>
+        </TouchableOpacity>
+
+        {Platform.OS === 'android' && showTimePicker && (
+          <DateTimePicker
+            value={timeToPickerDate(ceremonyTime)}
+            mode="time"
+            display="default"
+            onChange={(_, date) => {
+              setShowTimePicker(false);
+              if (date) setCeremonyTime(pickerDateToHHMM(date));
+            }}
+          />
+        )}
+        {Platform.OS === 'ios' && showTimePicker && (
+          <Modal visible transparent animationType="slide">
+            <View style={styles.pickerOverlay}>
+              <View style={styles.pickerSheet}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                    <Text style={styles.pickerDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={timeToPickerDate(ceremonyTime)}
+                  mode="time"
+                  display="spinner"
+                  onChange={(_, date) => { if (date) setCeremonyTime(pickerDateToHHMM(date)); }}
+                  textColor={theme.colors.ink}
+                  style={{ height: 180 }}
+                />
+              </View>
+            </View>
+          </Modal>
+        )}
 
         <Text style={styles.label}>FIRST EVENT DAY (optional)</Text>
         <TextInput
@@ -266,6 +320,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
     color: theme.colors.ink, backgroundColor: theme.colors.card, fontFamily: theme.fonts.sans,
   },
+  timeBtn: { justifyContent: 'center' },
+  timeBtnText: { borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0, fontSize: 15 },
+  pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
+  pickerSheet: {
+    backgroundColor: theme.colors.card,
+    borderTopLeftRadius: theme.radii.lg,
+    borderTopRightRadius: theme.radii.lg,
+    paddingBottom: 24,
+  },
+  pickerHeader: {
+    flexDirection: 'row' as const, justifyContent: 'flex-end' as const,
+    paddingHorizontal: 20, paddingVertical: 12,
+    borderBottomWidth: 0.5, borderColor: theme.colors.line,
+  },
+  pickerDone: { fontSize: 16, fontWeight: '600' as const, color: theme.colors.accent, fontFamily: theme.fonts.sans },
   btn: {
     backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill,
     padding: 16, alignItems: 'center', marginTop: 28,

@@ -19,7 +19,7 @@ export const useWeddingStore = create<WeddingState>((set, get) => ({
     const { config } = get();
     if (!config) return 0;
     const diff = config.weddingDate.getTime() - Date.now();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   },
   getCountdownParts: () => {
     const { config } = get();
