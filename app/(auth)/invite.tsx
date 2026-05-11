@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode, CodeIndexDoc } from '../../lib/firestore';
+import { validateInviteCode, getMember, CodeIndexDoc } from '../../lib/firestore';
 import { SprigDivider } from '../../components/SprigDivider';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
@@ -39,17 +39,30 @@ export default function InviteScreen() {
     if (!code.trim()) return;
     setLoading(true);
     const result = await validateInviteCode(code.trim().toUpperCase());
-    setLoading(false);
-    if (result) {
-      setPendingRole(result.role);
-      setPendingWeddingId(result.weddingId);
-      setPreview(result.preview);
-      setPendingResult({ weddingId: result.weddingId, role: result.role });
-      Animated.timing(previewAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-    } else {
+    if (!result) {
+      setLoading(false);
       Alert.alert('Invalid code', 'Please check the code and try again.');
+      return;
     }
+    if (auth.currentUser) {
+      try {
+        const existing = await getMember(result.weddingId, auth.currentUser.uid);
+        if (existing) {
+          setLoading(false);
+          Alert.alert('Already joined', "You're already part of this wedding.");
+          return;
+        }
+      } catch {
+        // Permission denied means user is not a member — proceed normally
+      }
+    }
+    setLoading(false);
+    setPendingRole(result.role);
+    setPendingWeddingId(result.weddingId);
+    setPreview(result.preview);
+    setPendingResult({ weddingId: result.weddingId, role: result.role });
+    Animated.timing(previewAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }
 
   function handleContinue() {
@@ -163,7 +176,13 @@ export default function InviteScreen() {
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backLink} onPress={() => {
+            setPendingWeddingId(null);
+            setPreview(null);
+            setPendingResult(null);
+            previewAnim.setValue(0);
+            router.back();
+          }}>
             <Text style={styles.backText}>Go back</Text>
           </TouchableOpacity>
         </Animated.View>

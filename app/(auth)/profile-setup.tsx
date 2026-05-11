@@ -15,7 +15,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, addWeddingToIndex } from '../../lib/firestore';
+import { createMember, getMember, addWeddingToIndex } from '../../lib/firestore';
 import { Avatar } from '../../components/Avatar';
 import { theme } from '../../constants/theme';
 
@@ -79,6 +79,21 @@ export default function ProfileSetupScreen() {
     if (!uid) return;
     setLoading(true);
     try {
+      let existing = null;
+      try {
+        existing = await getMember(pendingWeddingId, uid);
+      } catch {
+        // Permission denied — not yet a member, proceed with join
+      }
+      if (existing) {
+        // Already a member — never overwrite, especially don't demote a host to guest
+        await addWeddingToIndex(uid, pendingWeddingId);
+        setUserDoc(existing);
+        setUserWeddingIds(userWeddingIds.includes(pendingWeddingId) ? userWeddingIds : [...userWeddingIds, pendingWeddingId]);
+        setPendingWeddingId(null);
+        router.replace('/select-wedding');
+        return;
+      }
       let photoURL: string | null = null;
       if (avatarUri) photoURL = await uploadAvatar(uid, avatarUri);
       const memberData = {
@@ -157,7 +172,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.buttonText}>{loading ? 'Saving…' : "Let's go"}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => {
+        setPendingWeddingId(null);
+        router.replace('/(auth)/invite');
+      }} activeOpacity={0.7}>
         <Text style={styles.backText}>Go back</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -178,7 +196,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: theme.radii.md,
     padding: 16, fontSize: 16, marginBottom: 12, backgroundColor: theme.colors.card,
-    fontFamily: theme.fonts.sans, color: theme.colors.ink,
+    fontFamily: theme.fonts.sans, color: theme.colors.ink, letterSpacing: 0,
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   charCount: { fontSize: 12, color: theme.colors.ink4, textAlign: 'right', marginBottom: 16, fontFamily: theme.fonts.sans },
