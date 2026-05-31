@@ -59,3 +59,5 @@ ruvector.db
 
 # Firebase Functions build output
 functions/lib/
+.idea/
+claude-flow.config.json
