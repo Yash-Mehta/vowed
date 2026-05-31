@@ -48,7 +48,7 @@ export default function ForgotPasswordScreen() {
 
   if (sent) {
     return (
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.sentWrap}>
           <Text style={styles.sentIcon}>✦</Text>
           <Text style={styles.title}>Check your inbox</Text>
@@ -79,7 +79,7 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
         <Text style={styles.backArrow}>←</Text>
         <Text style={styles.backLabel}>Sign in</Text>

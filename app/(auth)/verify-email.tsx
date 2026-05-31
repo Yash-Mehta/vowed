@@ -73,7 +73,7 @@ export default function VerifyEmailScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Text style={styles.title}>Check your inbox</Text>
       <Text style={styles.body}>
         We sent a verification link to{' '}
