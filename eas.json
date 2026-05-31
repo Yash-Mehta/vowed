@@ -18,6 +18,9 @@
       "ios": {
         "image": "latest"
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "RCT_NEW_ARCH_ENABLED": "1",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDbK-WFoJOWTR9bsQuF-u6vV7HlR4j5mcc",

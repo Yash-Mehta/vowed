@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Avatar } from './Avatar';
 import { Post } from './PostCard';
+import { OptionsSheet } from './OptionsSheet';
 import { theme } from '../constants/theme';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption);
 
@@ -28,16 +30,8 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
     setEditing(false);
   }
 
-  function openMenu() {
-    Alert.alert('Announcement options', undefined, [
-      { text: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
-      { text: 'Edit', onPress: () => setEditing(true) },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }
-
   return (
+    <>
     <View style={styles.card}>
       {post.pinned && (
         <View style={styles.pinnedBar}>
@@ -49,7 +43,7 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
           <Avatar uri={post.authorPhotoURL} name={post.authorName} size={32} />
           <Text style={styles.authorName}>{post.authorName}</Text>
           {isHost && (
-            <TouchableOpacity onPress={openMenu} activeOpacity={0.7} style={styles.menuBtn}>
+            <TouchableOpacity onPress={() => setMenuOpen(true)} activeOpacity={0.7} style={styles.menuBtn}>
               <Text style={styles.menuBtnText}>· · ·</Text>
             </TouchableOpacity>
           )}
@@ -79,6 +73,18 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
         )}
       </View>
     </View>
+    {isHost && (
+      <OptionsSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        options={[
+          { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
+          { label: 'Edit', onPress: () => setEditing(true) },
+          { label: 'Delete', onPress: onDelete, destructive: true },
+        ]}
+      />
+    )}
+    </>
   );
 }
 
@@ -133,7 +139,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: theme.colors.ink2,
-    fontStyle: 'italic',
     fontFamily: theme.fonts.serifItalic,
   },
   editWrap: { gap: 10 },

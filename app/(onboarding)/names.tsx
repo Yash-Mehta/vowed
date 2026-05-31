@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sans, marginBottom: 6, textTransform: 'uppercase',
   },
   and: {
-    fontSize: 16, fontStyle: 'italic', color: theme.colors.accent,
+    fontSize: 16, color: theme.colors.accent,
     fontFamily: theme.fonts.serifItalic, textAlign: 'center', marginVertical: 10,
   },
   input: {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   previewName: { fontSize: 36, fontFamily: theme.fonts.serif, color: theme.colors.ink },
   previewAnd: {
-    fontSize: 18, fontStyle: 'italic', color: theme.colors.accent,
+    fontSize: 18, color: theme.colors.accent,
     fontFamily: theme.fonts.serifItalic, marginVertical: 4,
   },
   btn: {

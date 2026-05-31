@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
+import { OptionsSheet } from './OptionsSheet';
 import { theme } from '../constants/theme';
 
 export interface Post {
@@ -35,7 +36,10 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
 
+  const [localLiked, setLocalLiked] = useState(liked);
+  const hasInteracted = useRef(false);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption);
 
@@ -52,7 +56,10 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   }
 
   function handleLike() {
-    if (!liked) {
+    hasInteracted.current = true;
+    const willLike = !localLiked;
+    setLocalLiked(willLike);
+    if (willLike) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       Animated.sequence([
         Animated.timing(heartScale, { toValue: 1.4, duration: 130, useNativeDriver: true }),
@@ -67,10 +74,17 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
     onLike();
   }
 
+  // Sync liked from parent only until the user has interacted (handles initial Firestore load
+  // without letting onSnapshot reverts flip the heart back after an optimistic toggle)
+  useEffect(() => {
+    if (!hasInteracted.current) setLocalLiked(liked);
+  }, [liked]);
+
   // Sync optimistic count back once Firestore updates
   useEffect(() => { setOptimisticCount(null); }, [post.likeCount]);
 
   return (
+    <>
     <View style={[styles.card, theme.shadows.s1]}>
       {post.pinned && (
         <View style={styles.pinnedBar}>
@@ -84,17 +98,7 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
           <Text style={styles.timestamp}>{timeAgo}</Text>
         </View>
         {isHost && onDelete && (
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert('Post options', undefined, [
-                { text: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
-                { text: 'Edit caption', onPress: () => setEditing(true) },
-                { text: 'Delete post', style: 'destructive', onPress: onDelete },
-                { text: 'Cancel', style: 'cancel' },
-              ])
-            }
-            activeOpacity={0.7}
-            style={styles.hostBadge}>
+          <TouchableOpacity onPress={() => setMenuOpen(true)} activeOpacity={0.7} style={styles.hostBadge}>
             <Text style={styles.hostBadgeText}>· · ·</Text>
           </TouchableOpacity>
         )}
@@ -133,10 +137,13 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
       ) : null}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.action} onPress={handleLike}>
-          <Animated.Text
-            style={[styles.actionIcon, liked && styles.liked, { transform: [{ scale: heartScale }] }]}>
-            ♥
-          </Animated.Text>
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Ionicons
+              name={localLiked ? 'heart' : 'heart-outline'}
+              size={20}
+              color={localLiked ? theme.colors.heart : theme.colors.ink4}
+            />
+          </Animated.View>
           <Text style={styles.actionCount}>{optimisticCount ?? post.likeCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.action} onPress={onCommentPress}>
@@ -145,6 +152,18 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
         </TouchableOpacity>
       </View>
     </View>
+    {isHost && onDelete && (
+      <OptionsSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        options={[
+          { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
+          { label: 'Edit caption', onPress: () => setEditing(true) },
+          { label: 'Delete post', onPress: onDelete, destructive: true },
+        ]}
+      />
+    )}
+    </>
   );
 }
 
