@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert, Platform } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -101,7 +101,7 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
                 { text: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
                 { text: 'Edit caption', onPress: () => setEditing(true) },
                 { text: 'Delete post', style: 'destructive', onPress: onDelete },
-                { text: 'Cancel', style: 'cancel' },
+                { text: 'Cancel', style: Platform.OS === 'ios' ? 'cancel' : 'default' },
               ])
             }
             activeOpacity={0.7}

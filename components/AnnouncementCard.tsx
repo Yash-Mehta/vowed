@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { Avatar } from './Avatar';
 import { Post } from './PostCard';
 import { theme } from '../constants/theme';
@@ -33,7 +33,7 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
       { text: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
       { text: 'Edit', onPress: () => setEditing(true) },
       { text: 'Delete', style: 'destructive', onPress: onDelete },
-      { text: 'Cancel', style: 'cancel' },
+      { text: 'Cancel', style: Platform.OS === 'ios' ? 'cancel' : 'default' },
     ]);
   }
 
