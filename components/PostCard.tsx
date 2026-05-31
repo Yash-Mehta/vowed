@@ -133,10 +133,9 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
       ) : null}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.action} onPress={handleLike}>
-          <Animated.Text
-            style={[styles.actionIcon, liked && styles.liked, { transform: [{ scale: heartScale }] }]}>
-            ♥
-          </Animated.Text>
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Text style={[styles.actionIcon, liked && styles.liked]}>♥</Text>
+          </Animated.View>
           <Text style={styles.actionCount}>{optimisticCount ?? post.likeCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.action} onPress={onCommentPress}>
