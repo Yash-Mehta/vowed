@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated, Alert, Platform } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
+import { OptionsSheet } from './OptionsSheet';
 import { theme } from '../constants/theme';
 
 export interface Post {
@@ -38,6 +39,7 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   const [localLiked, setLocalLiked] = useState(liked);
   const hasInteracted = useRef(false);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption);
 
@@ -82,6 +84,7 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   useEffect(() => { setOptimisticCount(null); }, [post.likeCount]);
 
   return (
+    <>
     <View style={[styles.card, theme.shadows.s1]}>
       {post.pinned && (
         <View style={styles.pinnedBar}>
@@ -95,17 +98,7 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
           <Text style={styles.timestamp}>{timeAgo}</Text>
         </View>
         {isHost && onDelete && (
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert('Post options', undefined, [
-                { text: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
-                { text: 'Edit caption', onPress: () => setEditing(true) },
-                { text: 'Delete post', style: 'destructive', onPress: onDelete },
-                { text: 'Cancel', style: Platform.OS === 'ios' ? 'cancel' : 'default' },
-              ])
-            }
-            activeOpacity={0.7}
-            style={styles.hostBadge}>
+          <TouchableOpacity onPress={() => setMenuOpen(true)} activeOpacity={0.7} style={styles.hostBadge}>
             <Text style={styles.hostBadgeText}>· · ·</Text>
           </TouchableOpacity>
         )}
@@ -159,6 +152,18 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
         </TouchableOpacity>
       </View>
     </View>
+    {isHost && onDelete && (
+      <OptionsSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        options={[
+          { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
+          { label: 'Edit caption', onPress: () => setEditing(true) },
+          { label: 'Delete post', onPress: onDelete, destructive: true },
+        ]}
+      />
+    )}
+    </>
   );
 }
 
