@@ -379,7 +379,6 @@ const styles = StyleSheet.create({
     padding: 12,
     color: theme.colors.ink3,
     fontSize: 11,
-    fontStyle: 'italic',
     fontFamily: theme.fonts.serifItalic,
   },
   fab: {

@@ -139,7 +139,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: theme.colors.ink2,
-    fontStyle: 'italic',
     fontFamily: theme.fonts.serifItalic,
   },
   editWrap: { gap: 10 },

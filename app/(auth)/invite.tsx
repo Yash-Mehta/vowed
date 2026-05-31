@@ -258,7 +258,6 @@ const styles = StyleSheet.create({
   andText: {
     fontSize: 22,
     fontFamily: theme.fonts.serifItalic,
-    fontStyle: 'italic',
     color: theme.colors.accent,
     marginVertical: 4,
     textAlign: 'center',
@@ -276,7 +275,6 @@ const styles = StyleSheet.create({
   },
   venue: {
     fontSize: 12,
-    fontStyle: 'italic',
     color: theme.colors.ink3,
     marginBottom: 20,
     fontFamily: theme.fonts.serifItalic,
