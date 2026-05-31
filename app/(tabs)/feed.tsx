@@ -81,14 +81,30 @@ export default function FeedScreen() {
       if (!firebaseUser || !weddingId) return;
       const uid = firebaseUser.uid;
       const likeRef = doc(db, 'weddings', weddingId, 'posts', post.id, 'likes', uid);
+      const isLiked = likedIds.has(post.id);
+
+      // Optimistically update so the heart responds immediately on all platforms
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (isLiked) next.delete(post.id);
+        else next.add(post.id);
+        return next;
+      });
+
       try {
-        if (likedIds.has(post.id)) {
+        if (isLiked) {
           await deleteDoc(likeRef);
         } else {
           await setDoc(likeRef, { likedAt: new Date() });
         }
       } catch {
-        // snapshot listener will reconcile the correct state
+        // Revert optimistic update on failure
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          if (isLiked) next.add(post.id);
+          else next.delete(post.id);
+          return next;
+        });
       }
     },
     [firebaseUser, likedIds, weddingId]
