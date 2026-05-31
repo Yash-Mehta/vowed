@@ -35,6 +35,8 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
 
+  const [localLiked, setLocalLiked] = useState(liked);
+  const hasInteracted = useRef(false);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption);
@@ -52,7 +54,10 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
   }
 
   function handleLike() {
-    if (!liked) {
+    hasInteracted.current = true;
+    const willLike = !localLiked;
+    setLocalLiked(willLike);
+    if (willLike) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       Animated.sequence([
         Animated.timing(heartScale, { toValue: 1.4, duration: 130, useNativeDriver: true }),
@@ -66,6 +71,12 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
     }
     onLike();
   }
+
+  // Sync liked from parent only until the user has interacted (handles initial Firestore load
+  // without letting onSnapshot reverts flip the heart back after an optimistic toggle)
+  useEffect(() => {
+    if (!hasInteracted.current) setLocalLiked(liked);
+  }, [liked]);
 
   // Sync optimistic count back once Firestore updates
   useEffect(() => { setOptimisticCount(null); }, [post.likeCount]);
@@ -134,7 +145,11 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
       <View style={styles.actions}>
         <TouchableOpacity style={styles.action} onPress={handleLike}>
           <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-            <Text style={[styles.actionIcon, liked && styles.liked]}>♥</Text>
+            <Ionicons
+              name={localLiked ? 'heart' : 'heart-outline'}
+              size={20}
+              color={localLiked ? theme.colors.heart : theme.colors.ink4}
+            />
           </Animated.View>
           <Text style={styles.actionCount}>{optimisticCount ?? post.likeCount}</Text>
         </TouchableOpacity>

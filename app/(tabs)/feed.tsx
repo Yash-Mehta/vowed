@@ -173,6 +173,7 @@ export default function FeedScreen() {
       <FlatList
         data={posts}
         keyExtractor={(p) => p.id}
+        extraData={likedIds}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
