@@ -84,7 +84,9 @@ functions/src/       Cloud Functions — notifications, like/comment counters
 lib/                 Firebase init, Firestore helpers, weddingConfig, notifications
 store/               Zustand stores (auth, wedding, onboarding)
 scripts/             seed.ts, seed2.ts, seed-empty-user.ts, wipe-db.ts
-public/              Firebase Hosting pages (delete-account, csae-policy)
+public/              Firebase Hosting pages
+  delete-account.html  Account & data deletion request form (Play Store / App Store compliance)
+  csae-policy.html     Child safety policy (required for Google Play submission)
 ```
 
 ---
@@ -129,6 +131,13 @@ firebase deploy --only functions
 ```bash
 firebase deploy --only hosting
 ```
+
+Hosted pages (live at `https://our-day-39d9d.web.app`):
+
+| Page | URL | Purpose |
+|---|---|---|
+| Account deletion | `/delete-account.html` | Users can request account + data deletion |
+| Child safety policy | `/csae-policy.html` | CSAE policy required by Google Play |
 
 ### iOS Build
 
