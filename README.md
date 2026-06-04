@@ -2,7 +2,7 @@
 
 A private, invite-only wedding app for couples and their guests.
 
-Couples create their wedding in minutes and share invite codes with guests. Guests join and get access to a live photo feed, the weekend schedule, and the registry. Hosts get an admin panel to post announcements, manage the schedule, and moderate guests. One account can belong to multiple wedding parties.
+Couples create their wedding in minutes and share invite codes with guests. Guests join and get access to a live photo feed, the weekend schedule, and announcements. Hosts get an admin panel to post announcements, manage the schedule, and moderate guests. One account can belong to multiple wedding parties.
 
 ---
 
@@ -14,7 +14,7 @@ Couples create their wedding in minutes and share invite codes with guests. Gues
 - **Countdown** — live days · hours · minutes banner counting down to the exact ceremony time set by the host (stored UTC, displayed in device local time)
 - **Schedule** — full wedding weekend itinerary with event icons, dress codes, and live countdown to the next event
 - **Host admin panel** — add/edit/reorder schedule events, promote/demote guests, upload wedding logo
-- **Push notifications** — new posts and comments via FCM
+- **Push notifications** — new posts and comments via FCM (iOS and Android)
 - **Multi-tenant** — each wedding is fully isolated; one app serves many couples
 
 ---
@@ -24,10 +24,11 @@ Couples create their wedding in minutes and share invite codes with guests. Gues
 | Layer | Technology |
 |---|---|
 | App | React Native · Expo SDK 54 · expo-router |
+| Platforms | iOS · Android |
 | Backend | Firebase (Auth · Firestore · Storage · Cloud Functions v2) |
 | State | Zustand |
 | Notifications | Firebase Cloud Messaging |
-| Builds | EAS Build |
+| Builds | EAS Build (iOS) · Gradle (Android) |
 
 ---
 
@@ -47,10 +48,15 @@ npm install
 
 ### Environment
 
-Copy `.env.example` to `.env` and fill in your Firebase config values:
+Firebase config is injected via `EXPO_PUBLIC_*` environment variables. For local development, create a `.env` file:
 
-```bash
-cp .env.example .env
+```
+EXPO_PUBLIC_FIREBASE_API_KEY=
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+EXPO_PUBLIC_FIREBASE_APP_ID=
 ```
 
 ### Run
@@ -59,8 +65,6 @@ cp .env.example .env
 npx expo start
 ```
 
-Scan the QR code with Expo Go.
-
 ---
 
 ## Project Structure
@@ -68,25 +72,26 @@ Scan the QR code with Expo Go.
 ```
 app/
   (auth)/            invite, login, register, profile-setup, forgot-password, verify-email
-  (onboarding)/      host onboarding flow (4 steps: account → names → date/venue → codes → confirm)
+  (onboarding)/      host onboarding flow (account → names → date/venue → codes → confirm)
   (tabs)/            feed, schedule, guests, profile, manage (host only)
   select-wedding.tsx party selection screen (shown after every sign-in)
   compose.tsx        host post composer
   privacy.tsx        privacy policy
-components/          shared UI (PostCard, CommentSheet, ScheduleEventCard, …)
+components/          shared UI (PostCard, AnnouncementCard, CommentSheet, ScheduleEventCard, …)
 constants/
   theme.ts           colors, fonts, radii, shadows
 functions/src/       Cloud Functions — notifications, like/comment counters
 lib/                 Firebase init, Firestore helpers, weddingConfig, notifications
 store/               Zustand stores (auth, wedding, onboarding)
 scripts/             seed.ts, seed2.ts, seed-empty-user.ts, wipe-db.ts
+public/              Firebase Hosting pages (delete-account, csae-policy)
 ```
 
 ---
 
 ## Seed Data
 
-Three test accounts are provided for development:
+Four test accounts for development:
 
 | Account | Email | Password | Weddings |
 |---|---|---|---|
@@ -96,7 +101,6 @@ Three test accounts are provided for development:
 | Empty account | `test.empty@example.com` | `Test123!` | None |
 
 ```bash
-# Reset and re-seed
 npx tsx scripts/wipe-db.ts
 npx tsx scripts/seed.ts
 npx tsx scripts/seed2.ts
@@ -120,27 +124,44 @@ cd functions && npm run build
 firebase deploy --only functions
 ```
 
-### App (EAS Build)
+### Firebase Hosting
 
 ```bash
-# Remote (requires available build minutes)
-eas build --platform ios --profile production
-
-# Local (requires Xcode)
-eas build --platform ios --profile production --local
-
-# Submit to App Store
-eas submit --platform ios
+firebase deploy --only hosting
 ```
+
+### iOS Build
+
+```bash
+eas build --platform ios --profile production --local
+# Upload to App Store via Transporter
+```
+
+### Android Build
+
+```bash
+# Generate android/ native directory
+npx expo prebuild --platform android --clean
+
+# APK (sideload / testing)
+ANDROID_HOME=$HOME/Library/Android/sdk ./android/gradlew :app:assembleRelease -p android
+
+# AAB (Play Store)
+ANDROID_HOME=$HOME/Library/Android/sdk ./android/gradlew :app:bundleRelease -p android
+```
+
+Output: `android/app/build/outputs/bundle/release/app-release.aab`
 
 ---
 
 ## Versioning
 
-Current version: **v2.0.1**
+Current version: **v1.3.0**
 
 | Version | Notes |
 |---|---|
-| v2.0.1 | Ceremony time input, UTC countdown fix, single status label |
-| v2.0.0 | Multi-wedding party selection, leave wedding, routing overhaul |
-| v1.x | Single-wedding architecture |
+| v1.3.0 | Android support — FCM, Play Store build, heart icon fix, custom fonts, OptionsSheet |
+| v1.2.7 | Live on iOS App Store |
+| v1.2.x | Push notifications, host controls, schedule improvements |
+| v1.1.x | Multi-wedding party selection, leave wedding, routing overhaul |
+| v1.0.x | Initial release |
