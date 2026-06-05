@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
@@ -10,6 +11,7 @@ export default function TabLayout() {
   const { role } = useAuthStore();
   const { config } = useWeddingStore();
   const isHost = role === 'host';
+  const { bottom } = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -21,8 +23,8 @@ export default function TabLayout() {
           backgroundColor: 'rgba(250,246,241,0.96)',
           borderTopColor: theme.colors.line,
           borderTopWidth: 0.5,
-          height: Platform.OS === 'ios' ? 80 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: Platform.OS === 'ios' ? 80 : 60 + bottom,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8 + bottom,
         },
         tabBarLabelStyle: {
           fontSize: 10,

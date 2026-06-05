@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getMessaging } from 'firebase-admin/messaging';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -108,23 +109,37 @@ async function getWeddingPushTokens(weddingId: string, excludeUid?: string): Pro
   return snap.docs
     .filter((d) => !excludeUid || d.id !== excludeUid)
     .map((d) => d.data().fcmToken as string | null)
-    .filter((t): t is string => !!t && t.startsWith('ExponentPushToken[') && t !== authorToken);
+    .filter((t): t is string => !!t && t.length > 10 && t !== authorToken);
 }
 
-async function sendExpoPush(
-  tokens: string[],
-  title: string,
-  body: string
-): Promise<void> {
+async function sendPushNotification(tokens: string[], title: string, body: string): Promise<void> {
   const unique = [...new Set(tokens)];
   if (unique.length === 0) return;
-  const messages = unique.map((to) => ({ to, title, body, sound: 'default' }));
-  const res = await fetch('https://exp.host/--/api/v2/push/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(messages),
-  });
-  if (!res.ok) console.error('Expo push error:', await res.text());
+
+  const expoTokens = unique.filter((t) => t.startsWith('ExponentPushToken['));
+  const fcmTokens = unique.filter((t) => !t.startsWith('ExponentPushToken['));
+
+  if (expoTokens.length > 0) {
+    const messages = expoTokens.map((to) => ({ to, title, body, sound: 'default' }));
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(messages),
+    });
+    if (!res.ok) console.error('Expo push error:', await res.text());
+  }
+
+  for (const token of fcmTokens) {
+    try {
+      await getMessaging().send({
+        token,
+        notification: { title, body },
+        android: { priority: 'high', notification: { sound: 'default' } },
+      });
+    } catch (err) {
+      console.error('FCM send error for token', token.slice(0, 20), err);
+    }
+  }
 }
 
 export const onPostCreated = onDocumentCreated(
@@ -140,7 +155,7 @@ export const onPostCreated = onDocumentCreated(
     const authorName = (post.authorName as string | undefined) ?? 'Someone';
     const title = isAnnouncement ? 'Wedding announcement' : `New photo from ${authorName}`;
     const body = (post.caption as string | undefined)?.slice(0, 100) ?? '';
-    await sendExpoPush(tokens, title, body);
+    await sendPushNotification(tokens, title, body);
   }
 );
 
@@ -159,9 +174,9 @@ export const onCommentCreated = onDocumentCreated(
     const authorSnap = await db.doc(`weddings/${weddingId}/members/${post.authorId}`).get();
     if (!authorSnap.exists) return;
     const token = authorSnap.data()?.fcmToken as string | null;
-    if (!token || !token.startsWith('ExponentPushToken[')) return;
+    if (!token || token.length < 10) return;
     const commentAuthorName = (comment.authorName as string | undefined) ?? 'Someone';
-    await sendExpoPush(
+    await sendPushNotification(
       [token],
       `${commentAuthorName} commented on your post`,
       (comment.text as string | undefined)?.slice(0, 120) ?? ''

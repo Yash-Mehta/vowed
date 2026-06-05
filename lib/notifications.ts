@@ -61,12 +61,17 @@ export async function registerForPushNotifications(
       return;
     }
 
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
-    if (!projectId) return;
-
     let token: string;
     try {
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      if (Platform.OS === 'android') {
+        // Use the native FCM token so Cloud Functions can deliver via Firebase Admin
+        // without needing Expo FCM credentials.
+        token = (await Notifications.getDevicePushTokenAsync()).data;
+      } else {
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+        if (!projectId) return;
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      }
     } catch {
       return;
     }
