@@ -165,10 +165,11 @@ Output: `android/app/build/outputs/bundle/release/app-release.aab`
 
 ## Versioning
 
-Current version: **v1.3.0**
+Current version: **v1.3.1**
 
 | Version | Notes |
 |---|---|
+| v1.3.1 | Android notification fix, nav bar overlap fix |
 | v1.3.0 | Android support — FCM, Play Store build, heart icon fix, custom fonts, OptionsSheet |
 | v1.2.7 | Live on iOS App Store |
 | v1.2.x | Push notifications, host controls, schedule improvements |

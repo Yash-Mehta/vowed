@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export interface OnboardingDraft {
+interface OnboardingDraft {
   // Step 1 (create-account) — email/password handled by Firebase, not stored here
   ownerName: string;
 

@@ -97,7 +97,7 @@ function parseTimeToTimestamp(timeStr: string, dateISO: string): Timestamp | nul
   return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
 }
 
-function formatTimestamp(ts: any): { time: string; day: string } {
+function formatTimestamp(ts: Timestamp | null): { time: string; day: string } {
   if (!ts?.toDate) return { time: '', day: '' };
   const d: Date = ts.toDate();
   const hours = d.getHours();
