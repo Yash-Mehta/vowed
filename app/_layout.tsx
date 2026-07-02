@@ -14,6 +14,7 @@ import { getUserIndex } from '../lib/firestore';
 import { useAuthStore } from '../store/authStore';
 import { useWeddingConfig } from '../hooks/useWeddingConfig';
 import { tryAutoLogin } from '../lib/secureAuth';
+import { AnimatedSplash } from '../components/AnimatedSplash';
 import { theme } from '../constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -34,6 +35,7 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const [showOverlay, setShowOverlay] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const hasTransitioned = useRef(false);
 
@@ -60,9 +62,8 @@ export default function RootLayout() {
 
   useWeddingConfig(weddingId);
 
-  useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+  // Native splash hide is owned by AnimatedSplash — it opens on an identical
+  // frame, so the handoff is seamless.
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -163,6 +164,9 @@ export default function RootLayout() {
         <Animated.View style={[StyleSheet.absoluteFill, styles.overlay, { opacity: overlayOpacity }]}>
           <Text style={styles.overlayTitle}>Vowed</Text>
         </Animated.View>
+      )}
+      {!splashDone && (
+        <AnimatedSplash ready={!isLoading} onDone={() => setSplashDone(true)} />
       )}
     </View>
   );
