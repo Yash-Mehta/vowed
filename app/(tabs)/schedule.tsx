@@ -112,9 +112,9 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 2,
+    letterSpacing: 2.2,
     textTransform: 'uppercase',
-    color: theme.colors.ink3,
+    color: theme.colors.gold,
     fontFamily: theme.fonts.sans,
     marginBottom: 4,
   },
