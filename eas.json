@@ -19,7 +19,7 @@
         "image": "latest"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "RCT_NEW_ARCH_ENABLED": "1",
