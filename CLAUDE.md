@@ -94,6 +94,9 @@ weddings/{weddingId}/members/{uid}
   role: 'host' | 'guest'
   fcmToken: string | null       ← set by registerForPushNotifications
   isSingle: boolean             ← opt-in relationship status
+  notifyPosts: boolean          ← absent = enabled; filtered server-side in onPostCreated
+  notifyComments: boolean       ← absent = enabled; checked in onCommentCreated
+                                  (announcements always notify — no preference exists)
 
 weddings/{weddingId}/posts/{postId}
   type: 'photo' | 'announcement'

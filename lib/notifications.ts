@@ -25,6 +25,19 @@ if (!isExpoGo) {
   }
 }
 
+export type NotificationPermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unavailable';
+
+// 'unavailable' = Expo Go or unsupported environment where push never works anyway
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+  if (isExpoGo || !Notifications) return 'unavailable';
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status as NotificationPermissionStatus;
+  } catch {
+    return 'unavailable';
+  }
+}
+
 export async function registerForPushNotifications(
   uid: string,
   weddingId: string

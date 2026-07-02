@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
@@ -9,6 +9,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Switch,
+  AppState,
+  Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -17,6 +20,7 @@ import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
 import { clearCredentials } from '../../lib/secureAuth';
 import { updateMember, deleteAccount } from '../../lib/firestore';
+import { getNotificationPermissionStatus } from '../../lib/notifications';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
@@ -30,6 +34,36 @@ export default function ProfileScreen() {
   const [isSingle, setIsSingle] = useState(userDoc?.isSingle ?? false);
   const [saving, setSaving] = useState(false);
   const [photoURI, setPhotoURI] = useState<string | null>(userDoc?.photoURL ?? null);
+  // Absent field = enabled (default all notifications on)
+  const [notifyPosts, setNotifyPosts] = useState(userDoc?.notifyPosts !== false);
+  const [notifyComments, setNotifyComments] = useState(userDoc?.notifyComments !== false);
+  const [osNotifsDenied, setOsNotifsDenied] = useState(false);
+
+  // Re-check OS permission when returning from Settings (app comes back to foreground)
+  useEffect(() => {
+    async function check() {
+      const status = await getNotificationPermissionStatus();
+      setOsNotifsDenied(status === 'denied');
+    }
+    check();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') check();
+    });
+    return () => sub.remove();
+  }, []);
+
+  async function handleNotifyToggle(field: 'notifyPosts' | 'notifyComments', value: boolean) {
+    const revert = field === 'notifyPosts' ? setNotifyPosts : setNotifyComments;
+    revert(value);
+    if (!firebaseUser || !weddingId) return;
+    try {
+      await updateMember(weddingId, firebaseUser.uid, { [field]: value });
+      setUserDoc({ ...userDoc!, [field]: value });
+    } catch {
+      revert(!value);
+      Alert.alert('Error', 'Could not update notification settings. Please try again.');
+    }
+  }
 
   async function pickPhoto() {
     Alert.alert('Change photo', undefined, [
@@ -214,6 +248,62 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
+        <View style={styles.notifSection}>
+          <Text style={styles.label}>Notifications</Text>
+
+          {osNotifsDenied && (
+            <TouchableOpacity
+              style={styles.notifBanner}
+              onPress={() => Linking.openSettings()}
+              activeOpacity={0.8}>
+              <Text style={styles.notifBannerText}>
+                Notifications are turned off for Vowed in your device settings, so none of these
+                will be delivered.
+              </Text>
+              <Text style={styles.notifBannerAction}>Open Settings →</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.notifRow}>
+            <View style={styles.notifText}>
+              <Text style={styles.notifTitle}>Announcements</Text>
+              <Text style={styles.notifSub}>Always on — key updates from the couple</Text>
+            </View>
+            <Switch
+              value={true}
+              disabled
+              trackColor={{ false: theme.colors.surface3, true: theme.colors.accentSoft }}
+              thumbColor={theme.colors.accent}
+            />
+          </View>
+
+          <View style={styles.notifRow}>
+            <View style={styles.notifText}>
+              <Text style={styles.notifTitle}>New photo posts</Text>
+              <Text style={styles.notifSub}>When someone shares a photo</Text>
+            </View>
+            <Switch
+              value={notifyPosts}
+              onValueChange={(v) => handleNotifyToggle('notifyPosts', v)}
+              trackColor={{ false: theme.colors.surface3, true: theme.colors.accentSoft }}
+              thumbColor={notifyPosts ? theme.colors.accent : theme.colors.card}
+            />
+          </View>
+
+          <View style={[styles.notifRow, styles.notifRowLast]}>
+            <View style={styles.notifText}>
+              <Text style={styles.notifTitle}>Comments on your posts</Text>
+              <Text style={styles.notifSub}>When someone comments on your post</Text>
+            </View>
+            <Switch
+              value={notifyComments}
+              onValueChange={(v) => handleNotifyToggle('notifyComments', v)}
+              trackColor={{ false: theme.colors.surface3, true: theme.colors.accentSoft }}
+              thumbColor={notifyComments ? theme.colors.accent : theme.colors.card}
+            />
+          </View>
+        </View>
+
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -347,6 +437,47 @@ const styles = StyleSheet.create({
   },
   singleDotActive: { borderColor: '#E8B84B', backgroundColor: '#E8B84B' },
   singleCheck: { fontSize: 11, color: '#fff', fontWeight: '700' },
+  notifSection: {
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radii.lg,
+    padding: 16,
+    paddingBottom: 4,
+    marginBottom: 18,
+    backgroundColor: theme.colors.card,
+  },
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderColor: theme.colors.line,
+  },
+  notifRowLast: { borderBottomWidth: 0 },
+  notifBanner: {
+    backgroundColor: theme.colors.accentTint,
+    borderRadius: theme.radii.md,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  notifBannerText: {
+    fontSize: 12,
+    color: theme.colors.accentDeep,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 17,
+  },
+  notifBannerAction: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.sans,
+    marginTop: 6,
+  },
+  notifText: { flex: 1, marginRight: 12 },
+  notifTitle: { fontSize: 14, color: theme.colors.ink, fontFamily: theme.fonts.sans, fontWeight: '500' },
+  notifSub: { fontSize: 11, color: theme.colors.ink4, marginTop: 2, fontFamily: theme.fonts.sans, lineHeight: 15 },
   saveBtn: {
     backgroundColor: theme.colors.accent,
     borderRadius: theme.radii.pill,

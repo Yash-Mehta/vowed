@@ -22,6 +22,9 @@ export interface UserDoc {
   fcmToken: string | null;
   createdAt: unknown;
   isSingle?: boolean;
+  // Notification preferences — absent means enabled; announcements are always on
+  notifyPosts?: boolean;
+  notifyComments?: boolean;
 }
 
 export interface UserIndexDoc {

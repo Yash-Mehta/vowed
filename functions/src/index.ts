@@ -101,13 +101,20 @@ export const sendResetEmail = onCall(
 
 // ── Push notifications ────────────────────────────────────────────────────────
 
-async function getWeddingPushTokens(weddingId: string, excludeUid?: string): Promise<string[]> {
+// prefField: member-doc boolean gating this notification type. Absent field = opted in,
+// so only an explicit `false` filters a member out (backward compat with old member docs).
+async function getWeddingPushTokens(
+  weddingId: string,
+  excludeUid?: string,
+  prefField?: 'notifyPosts'
+): Promise<string[]> {
   const snap = await db.collection('weddings').doc(weddingId).collection('members').get();
   const authorToken = excludeUid
     ? (snap.docs.find((d) => d.id === excludeUid)?.data().fcmToken as string | null) ?? null
     : null;
   return snap.docs
     .filter((d) => !excludeUid || d.id !== excludeUid)
+    .filter((d) => !prefField || d.data()[prefField] !== false)
     .map((d) => d.data().fcmToken as string | null)
     .filter((t): t is string => !!t && t.length > 10 && t !== authorToken);
 }
@@ -149,9 +156,14 @@ export const onPostCreated = onDocumentCreated(
     if (!post) return;
     const { weddingId } = event.params;
     const authorId = post.authorId as string | undefined;
-    const tokens = await getWeddingPushTokens(weddingId, authorId);
-    if (tokens.length === 0) return;
     const isAnnouncement = post.type === 'announcement';
+    // Announcements always notify everyone; photo posts respect the notifyPosts preference
+    const tokens = await getWeddingPushTokens(
+      weddingId,
+      authorId,
+      isAnnouncement ? undefined : 'notifyPosts'
+    );
+    if (tokens.length === 0) return;
     const authorName = (post.authorName as string | undefined) ?? 'Someone';
     const title = isAnnouncement ? 'Wedding announcement' : `New photo from ${authorName}`;
     const body = (post.caption as string | undefined)?.slice(0, 100) ?? '';
@@ -173,6 +185,7 @@ export const onCommentCreated = onDocumentCreated(
     if (post.authorId === comment.authorId) return;
     const authorSnap = await db.doc(`weddings/${weddingId}/members/${post.authorId}`).get();
     if (!authorSnap.exists) return;
+    if (authorSnap.data()?.notifyComments === false) return;
     const token = authorSnap.data()?.fcmToken as string | null;
     if (!token || token.length < 10) return;
     const commentAuthorName = (comment.authorName as string | undefined) ?? 'Someone';
