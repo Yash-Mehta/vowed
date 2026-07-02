@@ -61,3 +61,4 @@ ruvector.db
 functions/lib/
 .idea/
 claude-flow.config.json
+.firebase/
