@@ -34,6 +34,15 @@ export const theme = {
     // Countdown banner gradient
     countdownStart: '#5C3329',
     countdownEnd: '#7A4A3F',
+
+    // Evolved soft luxury — deep wine field (matches native splash) + gold leaf
+    wine: '#5C1A1A',
+    wineDeep: '#471414',
+    gold: '#B08D3E',
+    goldSoft: '#D9C08A',
+    goldTint: 'rgba(176, 141, 62, 0.14)',
+    surfaceRaised: '#FFFDF9',
+    creamOnWine: 'rgba(250, 246, 241, 0.72)',
   },
 
   fonts: {
@@ -61,6 +70,34 @@ export const theme = {
     lg: 22,
     xl: 28,
     pill: 9999,
+  },
+
+  // Spacing rhythm — use these instead of ad-hoc paddings in redesigned surfaces
+  space: {
+    xs: 4,
+    s: 8,
+    m: 12,
+    l: 18,
+    xl: 24,
+    xxl: 36,
+    section: 48,
+  },
+
+  // Type scale for the editorial system. Spread into StyleSheet entries:
+  //   { ...theme.type.display, color: theme.colors.ink }
+  type: {
+    display: { fontSize: 34, lineHeight: 40, letterSpacing: 0.2 },
+    title: { fontSize: 24, lineHeight: 30, letterSpacing: 0.2 },
+    heading: { fontSize: 18, lineHeight: 24 },
+    body: { fontSize: 15, lineHeight: 22 },
+    caption: { fontSize: 12, lineHeight: 16 },
+    eyebrow: { fontSize: 10, lineHeight: 14, letterSpacing: 2.2, textTransform: 'uppercase' as const },
+  },
+
+  motion: {
+    fast: 150,
+    normal: 300,
+    slow: 550,
   },
 
   shadows: {

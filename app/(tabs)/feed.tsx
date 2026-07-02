@@ -193,19 +193,20 @@ export default function FeedScreen() {
                   </View>
                 )}
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.headerTitle}>Vowed</Text>
-                  <Text style={styles.headerSub}>
-                    {role === 'host' ? '✦ Hosting view' : coupleName}
+                  <Text style={styles.headerEyebrow}>
+                    {role === 'host' ? 'VOWED · HOSTING' : 'VOWED'}
                   </Text>
+                  <Text style={styles.headerTitle}>{coupleName}</Text>
                 </View>
               </View>
             </View>
 
             <LinearGradient
-              colors={[theme.colors.countdownStart, theme.colors.countdownEnd]}
+              colors={[theme.colors.wineDeep, theme.colors.countdownEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.countdown}>
+              <View style={styles.countdownFrame} pointerEvents="none" />
               <View style={styles.countdownSprig}>
                 <Sprig size={120} color="rgba(255,255,255,0.9)" />
               </View>
@@ -313,18 +314,18 @@ const styles = StyleSheet.create({
     color: theme.colors.accentDeep,
     letterSpacing: 1,
   },
+  headerEyebrow: {
+    ...theme.type.eyebrow,
+    color: theme.colors.gold,
+    fontFamily: theme.fonts.sans,
+    fontWeight: '600',
+  },
   headerTitle: {
     fontSize: 22,
     fontFamily: theme.fonts.serif,
     color: theme.colors.ink,
     lineHeight: 26,
-  },
-  headerSub: {
-    fontSize: 10,
-    color: theme.colors.ink3,
-    letterSpacing: 0.8,
-    marginTop: 2,
-    fontFamily: theme.fonts.sans,
+    marginTop: 1,
   },
   countdown: {
     marginHorizontal: 18,
@@ -337,13 +338,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...theme.shadows.s2,
   },
+  countdownFrame: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 5,
+    borderRadius: theme.radii.lg - 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.goldSoft,
+    opacity: 0.55,
+  },
   countdownSprig: { position: 'absolute', right: -12, top: -12, opacity: 0.18 },
   countdownLeft: { flex: 1 },
   countdownEyebrow: {
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 1.8,
-    color: 'rgba(250,246,241,0.7)',
+    letterSpacing: 2.2,
+    color: theme.colors.goldSoft,
     fontFamily: theme.fonts.sans,
   },
   countdownDisplay: {
@@ -365,11 +374,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 56,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: 'rgba(217, 192, 138, 0.4)',
   },
   tileNumber: {
     fontFamily: theme.fonts.serif,
