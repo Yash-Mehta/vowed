@@ -24,6 +24,7 @@ interface Props {
   post: Post;
   liked: boolean;
   onLike: () => void;
+  onLikeCountPress?: () => void;
   onCommentPress: () => void;
   isHost?: boolean;
   onDelete?: () => void;
@@ -32,7 +33,7 @@ interface Props {
   onDownload?: () => void;
 }
 
-export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
+export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress, isHost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
 
@@ -136,16 +137,22 @@ export function PostCard({ post, liked, onLike, onCommentPress, isHost, onDelete
         <Text style={styles.caption}>{post.caption}</Text>
       ) : null}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.action} onPress={handleLike}>
-          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-            <Ionicons
-              name={localLiked ? 'heart' : 'heart-outline'}
-              size={20}
-              color={localLiked ? theme.colors.heart : theme.colors.ink4}
-            />
-          </Animated.View>
-          <Text style={styles.actionCount}>{optimisticCount ?? post.likeCount}</Text>
-        </TouchableOpacity>
+        <View style={styles.action}>
+          <TouchableOpacity onPress={handleLike}>
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Ionicons
+                name={localLiked ? 'heart' : 'heart-outline'}
+                size={20}
+                color={localLiked ? theme.colors.heart : theme.colors.ink4}
+              />
+            </Animated.View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onLikeCountPress}
+            disabled={!onLikeCountPress || (optimisticCount ?? post.likeCount) === 0}>
+            <Text style={styles.actionCount}>{optimisticCount ?? post.likeCount}</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.action} onPress={onCommentPress}>
           <Text style={styles.actionIcon}>○</Text>
           <Text style={styles.actionCount}>{post.commentCount}</Text>

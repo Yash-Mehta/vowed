@@ -30,6 +30,7 @@ import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { PostCard, Post } from '../../components/PostCard';
 import { AnnouncementCard } from '../../components/AnnouncementCard';
 import { CommentSheet } from '../../components/CommentSheet';
+import { LikesSheet } from '../../components/LikesSheet';
 import { EmptyState } from '../../components/EmptyState';
 import { Sprig } from '../../components/Sprig';
 import { theme } from '../../constants/theme';
@@ -39,7 +40,8 @@ export default function FeedScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activePostId, setActivePostId] = useState<string | null>(null);
-  const { firebaseUser, role, weddingId } = useAuthStore();
+  const [activeLikesPostId, setActiveLikesPostId] = useState<string | null>(null);
+  const { firebaseUser, role, weddingId, userDoc } = useAuthStore();
   const { config, getDaysUntilWedding, getCountdownParts } = useWeddingStore();
   const router = useRouter();
 
@@ -95,7 +97,11 @@ export default function FeedScreen() {
         if (isLiked) {
           await deleteDoc(likeRef);
         } else {
-          await setDoc(likeRef, { likedAt: new Date() });
+          await setDoc(likeRef, {
+            likedAt: new Date(),
+            displayName: userDoc?.displayName ?? '',
+            photoURL: userDoc?.photoURL ?? null,
+          });
         }
       } catch {
         // Revert optimistic update on failure
@@ -240,6 +246,7 @@ export default function FeedScreen() {
               post={item}
               liked={likedIds.has(item.id)}
               onLike={() => handleLike(item)}
+              onLikeCountPress={() => setActiveLikesPostId(item.id)}
               onCommentPress={() => setActivePostId(item.id)}
               isHost={role === 'host'}
               onDelete={role === 'host' ? () => handleDelete(item) : undefined}
@@ -273,6 +280,7 @@ export default function FeedScreen() {
       )}
 
       <CommentSheet postId={activePostId} onClose={() => setActivePostId(null)} />
+      <LikesSheet postId={activeLikesPostId} onClose={() => setActiveLikesPostId(null)} />
     </ScreenWrapper>
   );
 }

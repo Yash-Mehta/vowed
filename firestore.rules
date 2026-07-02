@@ -58,7 +58,8 @@ service cloud.firestore {
         }
 
         match /likes/{uid} {
-          allow read, write: if isOwner(uid) && isMember(weddingId);
+          allow read: if isMember(weddingId);
+          allow write: if isOwner(uid) && isMember(weddingId);
         }
       }
 

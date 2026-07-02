@@ -229,7 +229,12 @@ async function seed() {
     // Likes — random subset of guests
     const likers = guestUids.filter((_, idx) => (i + idx) % 2 === 0);
     for (const uid of likers) {
-      await postRef.collection('likes').doc(uid).set({ likedAt: admin.firestore.FieldValue.serverTimestamp() });
+      const liker = GUESTS[guestUids.indexOf(uid)];
+      await postRef.collection('likes').doc(uid).set({
+        likedAt: admin.firestore.FieldValue.serverTimestamp(),
+        displayName: liker.displayName,
+        photoURL: liker.avatar,
+      });
     }
 
     console.log(`✓ Post ${i + 1}/${POSTS.length}: "${p.caption.slice(0, 40)}..."`);
