@@ -98,6 +98,8 @@ weddings/{weddingId}/members/{uid}
 weddings/{weddingId}/posts/{postId}
   type: 'photo' | 'announcement'
   authorId, authorName, authorPhotoURL
+  photoURL: string | null       ← first photo (legacy + backward compat)
+  photoURLs: string[]           ← all photos; older posts may lack this field
   likeCount, commentCount       ← maintained by Cloud Functions
 
 weddings/{weddingId}/posts/{postId}/likes/{uid}

@@ -21,14 +21,24 @@ import { postsCol } from '../lib/firestore';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { theme } from '../constants/theme';
 
+const MAX_PHOTOS = 10;
+
 export default function ComposeScreen() {
   const router = useRouter();
   const { firebaseUser, userDoc, weddingId, role } = useAuthStore();
   const [caption, setCaption] = useState('');
-  const [imageURI, setImageURI] = useState<string | null>(null);
+  const [imageURIs, setImageURIs] = useState<string[]>([]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [posting, setPosting] = useState(false);
+
+  function appendImages(uris: string[]) {
+    setImageURIs((prev) => [...prev, ...uris].slice(0, MAX_PHOTOS));
+  }
+
+  function removeImage(uri: string) {
+    setImageURIs((prev) => prev.filter((u) => u !== uri));
+  }
 
   async function pickImage() {
     Alert.alert('Add photo', undefined, [
@@ -41,14 +51,21 @@ export default function ComposeScreen() {
             return;
           }
           const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.85 });
-          if (!result.canceled && result.assets[0]) setImageURI(result.assets[0].uri);
+          if (!result.canceled && result.assets[0]) appendImages([result.assets[0].uri]);
         },
       },
       {
         text: 'Photo Library',
         onPress: async () => {
-          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.85 });
-          if (!result.canceled && result.assets[0]) setImageURI(result.assets[0].uri);
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: true,
+            selectionLimit: MAX_PHOTOS - imageURIs.length,
+            quality: 0.85,
+          });
+          if (!result.canceled && result.assets.length > 0) {
+            appendImages(result.assets.map((a) => a.uri));
+          }
         },
       },
       { text: 'Cancel', style: 'cancel' },
@@ -57,23 +74,28 @@ export default function ComposeScreen() {
 
   async function handlePost() {
     if (!firebaseUser || !userDoc || !weddingId) return;
-    if (!caption.trim() && !imageURI) {
+    if (!caption.trim() && imageURIs.length === 0) {
       Alert.alert('Nothing to post', 'Add a caption or photo.');
       return;
     }
     setPosting(true);
     try {
-      let photoURL: string | null = null;
-      if (imageURI && !isAnnouncement) {
-        const blob = await (await fetch(imageURI)).blob();
-        const storageRef = ref(storage, `weddings/${weddingId}/posts/${firebaseUser.uid}-${Date.now()}`);
-        await uploadBytes(storageRef, blob);
-        photoURL = await getDownloadURL(storageRef);
+      let photoURLs: string[] = [];
+      if (imageURIs.length > 0 && !isAnnouncement) {
+        photoURLs = await Promise.all(
+          imageURIs.map(async (uri, i) => {
+            const blob = await (await fetch(uri)).blob();
+            const storageRef = ref(storage, `weddings/${weddingId}/posts/${firebaseUser.uid}-${Date.now()}-${i}`);
+            await uploadBytes(storageRef, blob);
+            return getDownloadURL(storageRef);
+          })
+        );
       }
       await addDoc(postsCol(weddingId), {
         type: isAnnouncement ? 'announcement' : 'photo',
         caption: caption.trim(),
-        photoURL,
+        photoURL: photoURLs[0] ?? null,
+        photoURLs,
         authorId: firebaseUser.uid,
         authorName: userDoc.displayName,
         authorPhotoURL: userDoc.photoURL,
@@ -136,16 +158,38 @@ export default function ComposeScreen() {
         )}
 
         {!isAnnouncement && (
-          <TouchableOpacity style={styles.photoPicker} onPress={pickImage} activeOpacity={0.8}>
-            {imageURI ? (
-              <Image source={{ uri: imageURI }} style={styles.previewImage} />
-            ) : (
+          imageURIs.length === 0 ? (
+            <TouchableOpacity style={styles.photoPicker} onPress={pickImage} activeOpacity={0.8}>
               <View style={styles.photoPlaceholder}>
                 <Text style={styles.photoPlaceholderIcon}>+</Text>
-                <Text style={styles.photoPlaceholderText}>Add photo</Text>
+                <Text style={styles.photoPlaceholderText}>Add photos</Text>
               </View>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.thumbStrip}
+              contentContainerStyle={styles.thumbStripContent}>
+              {imageURIs.map((uri) => (
+                <View key={uri} style={styles.thumbWrap}>
+                  <Image source={{ uri }} style={styles.thumb} />
+                  <TouchableOpacity
+                    style={styles.thumbRemove}
+                    onPress={() => removeImage(uri)}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.thumbRemoveText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {imageURIs.length < MAX_PHOTOS && (
+                <TouchableOpacity style={styles.thumbAdd} onPress={pickImage} activeOpacity={0.8}>
+                  <Text style={styles.thumbAddIcon}>+</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )
         )}
 
         <TextInput
@@ -224,7 +268,39 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.line,
     borderStyle: 'dashed',
   },
-  previewImage: { width: '100%', height: '100%' },
+  thumbStrip: { marginBottom: 14 },
+  thumbStripContent: { gap: 10, paddingVertical: 4 },
+  thumbWrap: { width: 110, height: 110 },
+  thumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surface2,
+  },
+  thumbRemove: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbRemoveText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  thumbAdd: {
+    width: 110,
+    height: 110,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbAddIcon: { fontSize: 28, color: theme.colors.ink4 },
   photoPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   photoPlaceholderIcon: { fontSize: 36, color: theme.colors.ink4 },
   photoPlaceholderText: { fontSize: 13, color: theme.colors.ink3, marginTop: 6, fontFamily: theme.fonts.sans },

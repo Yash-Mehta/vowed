@@ -145,8 +145,8 @@ export default function FeedScreen() {
     );
   }
 
-  async function handleDownload(post: Post) {
-    if (!post.photoURL) return;
+  async function handleDownload(post: Post, url: string) {
+    if (!url) return;
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
@@ -155,7 +155,7 @@ export default function FeedScreen() {
       }
       const fileName = `vowed_${post.id}_${Date.now()}.jpg`;
       const localUri = FileSystem.cacheDirectory + fileName;
-      const { uri } = await FileSystem.downloadAsync(post.photoURL, localUri);
+      const { uri } = await FileSystem.downloadAsync(url, localUri);
       await MediaLibrary.saveToLibraryAsync(uri);
       Alert.alert('Saved', 'Photo saved to your camera roll.');
     } catch {
@@ -252,7 +252,11 @@ export default function FeedScreen() {
               onDelete={role === 'host' ? () => handleDelete(item) : undefined}
               onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
               onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
-              onDownload={role === 'host' && item.photoURL ? () => handleDownload(item) : undefined}
+              onDownload={
+                role === 'host' && (item.photoURL || item.photoURLs?.length)
+                  ? (url) => handleDownload(item, url)
+                  : undefined
+              }
             />
           )
         }

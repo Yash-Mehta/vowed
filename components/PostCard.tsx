@@ -1,5 +1,17 @@
 import { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  FlatList,
+  useWindowDimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +25,7 @@ export interface Post {
   authorPhotoURL: string | null;
   type: 'photo' | 'announcement';
   photoURL: string | null;
+  photoURLs?: string[];
   caption: string;
   likeCount: number;
   commentCount: number;
@@ -30,12 +43,23 @@ interface Props {
   onDelete?: () => void;
   onTogglePin?: () => void;
   onEdit?: (newCaption: string) => void;
-  onDownload?: () => void;
+  onDownload?: (url: string) => void;
 }
 
 export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress, isHost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
+  const { width: windowWidth } = useWindowDimensions();
+  // Card spans the screen minus the 18px feed margins on each side
+  const photoWidth = windowWidth - 36;
+
+  const photos = post.photoURLs?.length ? post.photoURLs : post.photoURL ? [post.photoURL] : [];
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  function handlePhotoScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const index = Math.round(e.nativeEvent.contentOffset.x / photoWidth);
+    setPhotoIndex(Math.min(Math.max(index, 0), photos.length - 1));
+  }
 
   const [localLiked, setLocalLiked] = useState(liked);
   const hasInteracted = useRef(false);
@@ -104,11 +128,44 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
           </TouchableOpacity>
         )}
       </View>
-      {post.photoURL && (
+      {photos.length > 0 && (
         <View style={styles.photoContainer}>
-          <Image source={{ uri: post.photoURL }} style={styles.photo} resizeMode="cover" />
+          {photos.length === 1 ? (
+            <Image source={{ uri: photos[0] }} style={styles.photo} resizeMode="cover" />
+          ) : (
+            <>
+              <FlatList
+                data={photos}
+                keyExtractor={(url) => url}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handlePhotoScroll}
+                renderItem={({ item }) => (
+                  <Image
+                    source={{ uri: item }}
+                    style={[styles.photo, { width: photoWidth }]}
+                    resizeMode="cover"
+                  />
+                )}
+              />
+              <View style={styles.photoCounter}>
+                <Text style={styles.photoCounterText}>
+                  {photoIndex + 1}/{photos.length}
+                </Text>
+              </View>
+              <View style={styles.dots}>
+                {photos.map((url, i) => (
+                  <View key={url} style={[styles.dot, i === photoIndex && styles.dotActive]} />
+                ))}
+              </View>
+            </>
+          )}
           {isHost && onDownload && (
-            <TouchableOpacity style={styles.downloadBtn} onPress={onDownload} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={styles.downloadBtn}
+              onPress={() => onDownload(photos[photoIndex])}
+              activeOpacity={0.75}>
               <Ionicons name="download-outline" size={18} color="#fff" />
             </TouchableOpacity>
           )}
@@ -231,6 +288,30 @@ const styles = StyleSheet.create({
   },
   photoContainer: { width: '100%', aspectRatio: 4 / 3 },
   photo: { width: '100%', height: '100%' },
+  photoCounter: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: theme.radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  photoCounterText: { color: '#fff', fontSize: 11, fontWeight: '600', fontFamily: theme.fonts.sans },
+  dots: {
+    position: 'absolute',
+    bottom: 10,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 5,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  dotActive: { backgroundColor: '#fff' },
   downloadBtn: {
     position: 'absolute',
     bottom: 10,
