@@ -3,9 +3,8 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
-  Image,
+  Platform,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -21,8 +20,14 @@ interface Props {
   onDone: () => void;
 }
 
+// Android 12+ renders its own adaptive icon in a circular mask on the system
+// splash, so a square splash-icon in the overlay would visibly swap at handoff.
+// There the overlay opens on the plain wine field instead; the system icon's
+// disappearance reads as the first beat of the animation. iOS matches exactly.
+const SHOW_ICON = Platform.OS === 'ios';
+
 export function AnimatedSplash({ ready, onDone }: Props) {
-  const icon = useRef(new Animated.Value(1)).current;
+  const icon = useRef(new Animated.Value(SHOW_ICON ? 1 : 0)).current;
   const cream = useRef(new Animated.Value(0)).current;
   const wordmark = useRef(new Animated.Value(0)).current;
   const wordmarkRise = useRef(new Animated.Value(16)).current;
@@ -158,11 +163,13 @@ export function AnimatedSplash({ ready, onDone }: Props) {
         style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.bg, opacity: cream }]}
       />
 
-      <Animated.Image
-        source={require('../assets/splash-icon.png')}
-        style={[styles.icon, { opacity: icon }]}
-        resizeMode="contain"
-      />
+      {SHOW_ICON && (
+        <Animated.Image
+          source={require('../assets/splash-icon.png')}
+          style={[styles.icon, { opacity: icon }]}
+          resizeMode="contain"
+        />
+      )}
 
       <View style={styles.lockup}>
         <View style={styles.sprigRow}>
