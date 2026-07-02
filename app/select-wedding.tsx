@@ -16,6 +16,7 @@ import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
 import { clearCredentials } from '../lib/secureAuth';
+import { Sprig } from '../components/Sprig';
 import { theme } from '../constants/theme';
 
 export default function SelectWeddingScreen() {
@@ -104,10 +105,15 @@ export default function SelectWeddingScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[theme.colors.countdownStart, theme.colors.countdownEnd]}
+        colors={[theme.colors.wineDeep, theme.colors.countdownEnd]}
         style={styles.header}>
+        <View style={styles.sprigRow}>
+          <Sprig size={34} color={theme.colors.goldSoft} flip />
+          <Sprig size={34} color={theme.colors.goldSoft} />
+        </View>
         <Text style={styles.appName}>Vowed</Text>
-        <Text style={styles.subtitle}>Choose a wedding party</Text>
+        <View style={styles.headerRule} />
+        <Text style={styles.subtitle}>choose your wedding party</Text>
       </LinearGradient>
 
       {previews.length === 0 ? (
@@ -179,22 +185,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     alignItems: 'center',
   },
+  sprigRow: { flexDirection: 'row', gap: 12, marginBottom: 4, opacity: 0.9 },
   appName: {
     fontSize: 40,
     fontFamily: theme.fonts.serif,
     color: theme.colors.bg,
-    letterSpacing: -0.5,
+    letterSpacing: 1,
+  },
+  headerRule: {
+    width: 72,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: theme.colors.goldSoft,
+    opacity: 0.7,
+    marginTop: 10,
+    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 14,
-    color: 'rgba(250,246,241,0.75)',
-    fontFamily: theme.fonts.sans,
-    marginTop: 6,
-    letterSpacing: 0.3,
+    fontSize: 15,
+    color: theme.colors.creamOnWine,
+    fontFamily: theme.fonts.serifItalic,
+    letterSpacing: 0.4,
   },
   list: { padding: 24 },
   card: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.surfaceRaised,
     borderRadius: theme.radii.lg,
     padding: 20,
     marginBottom: 12,
@@ -202,21 +216,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.line,
-    ...theme.shadows.s1,
+    ...theme.shadows.s2,
   },
   cardContent: { flex: 1 },
   coupleName: {
-    fontSize: 20,
+    fontSize: 21,
     fontFamily: theme.fonts.serif,
     color: theme.colors.ink,
     marginBottom: 4,
   },
   dateStamp: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
-    color: theme.colors.ink3,
+    color: theme.colors.gold,
     fontFamily: theme.fonts.sans,
   },
   chevron: {

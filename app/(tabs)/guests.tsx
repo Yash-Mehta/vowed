@@ -47,6 +47,7 @@ export default function GuestsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.headerWrap}>
+            <Text style={styles.eyebrow}>THE WEDDING PARTY</Text>
             <Text style={styles.header}>Guests</Text>
             <Text style={styles.sub}>{guests.length} attending</Text>
           </View>
@@ -87,6 +88,14 @@ export default function GuestsScreen() {
 
 const styles = StyleSheet.create({
   headerWrap: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 12 },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 2.2,
+    color: theme.colors.gold,
+    fontFamily: theme.fonts.sans,
+    marginBottom: 4,
+  },
   header: {
     fontSize: 28,
     fontWeight: '700',

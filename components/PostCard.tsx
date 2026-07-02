@@ -211,7 +211,7 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.action} onPress={onCommentPress}>
-          <Text style={styles.actionIcon}>○</Text>
+          <Ionicons name="chatbubble-outline" size={18} color={theme.colors.ink4} />
           <Text style={styles.actionCount}>{post.commentCount}</Text>
         </TouchableOpacity>
       </View>
@@ -252,27 +252,33 @@ const styles = StyleSheet.create({
   pinnedBar: {
     padding: 8,
     paddingHorizontal: 14,
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.goldTint,
     borderBottomWidth: 0.5,
     borderColor: theme.colors.line,
   },
   pinnedText: {
     fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
-    color: theme.colors.accentDeep,
+    color: theme.colors.gold,
     fontFamily: theme.fonts.sans,
   },
   header: { flexDirection: 'row', alignItems: 'center', padding: 12 },
   headerText: { marginLeft: 10, flex: 1 },
   authorName: {
-    fontWeight: '600',
-    fontSize: 14,
+    fontSize: 16,
     color: theme.colors.ink,
-    fontFamily: theme.fonts.sans,
+    fontFamily: theme.fonts.serif,
   },
-  timestamp: { fontSize: 12, color: theme.colors.ink3, marginTop: 1, fontFamily: theme.fonts.sans },
+  timestamp: {
+    fontSize: 10,
+    color: theme.colors.ink3,
+    marginTop: 1,
+    fontFamily: theme.fonts.sans,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   hostBadge: {
     backgroundColor: theme.colors.accentTint,
     borderRadius: theme.radii.sm,

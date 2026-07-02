@@ -93,7 +93,7 @@ export default function InviteScreen() {
 
         {/* Gradient header */}
         <LinearGradient
-          colors={[theme.colors.countdownStart, theme.colors.countdownEnd]}
+          colors={[theme.colors.wineDeep, theme.colors.countdownEnd]}
           style={styles.hero}>
           <Animated.View style={[styles.heroContent, { opacity: fadeAnim }]}>
             <Text style={styles.appName}>Vowed</Text>

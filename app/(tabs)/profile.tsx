@@ -187,6 +187,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scroll}>
+        <Text style={styles.headerEyebrow}>YOUR DETAILS</Text>
         <Text style={styles.header}>My Profile</Text>
 
         <TouchableOpacity style={styles.avatarWrap} onPress={pickPhoto} activeOpacity={0.8} disabled={uploading}>
@@ -341,6 +342,14 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 80 },
+  headerEyebrow: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 2.2,
+    color: theme.colors.gold,
+    fontFamily: theme.fonts.sans,
+    marginBottom: 4,
+  },
   header: {
     fontSize: 28,
     fontWeight: '700',
