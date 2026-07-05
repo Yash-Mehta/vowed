@@ -12,9 +12,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#5C1A1A"
+      "backgroundColor": "#FAF6F1"
     },
     "ios": {
       "supportsTablet": false,
@@ -52,6 +50,16 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FAF6F1",
+          "ios": {
+            "image": "./assets/splash-lockup.png",
+            "imageWidth": 260
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
