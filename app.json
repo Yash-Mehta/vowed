@@ -11,9 +11,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#FAF6F1"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vowed.app",
@@ -57,6 +54,10 @@
           "ios": {
             "image": "./assets/splash-lockup.png",
             "imageWidth": 260
+          },
+          "android": {
+            "image": "./assets/splash-mark-android.png",
+            "imageWidth": 130
           }
         }
       ],
