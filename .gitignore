@@ -62,3 +62,6 @@ functions/lib/
 .idea/
 claude-flow.config.json
 .firebase/
+
+# Claude Code local config
+CLAUDE.md
