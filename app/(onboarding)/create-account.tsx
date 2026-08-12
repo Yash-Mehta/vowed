@@ -14,15 +14,16 @@ import {
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { saveCredentials } from '../../lib/secureAuth';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
+import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 export default function CreateAccountScreen() {
   const router = useRouter();
   const { setPendingRole, userDoc } = useAuthStore();
   const { update } = useOnboardingStore();
+  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
   const alreadySignedIn = !!auth.currentUser;
 
@@ -76,7 +77,6 @@ export default function CreateAccountScreen() {
           throw e;
         }
       }
-      await saveCredentials(email.trim(), password);
       router.replace('/(auth)/verify-email');
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -91,6 +91,7 @@ export default function CreateAccountScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scroll}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
@@ -116,6 +117,7 @@ export default function CreateAccountScreen() {
             placeholderTextColor={theme.colors.ink4}
             autoCapitalize="words"
             autoFocus
+            onFocus={scrollToInput}
           />
 
           <TouchableOpacity
@@ -162,6 +164,7 @@ export default function CreateAccountScreen() {
           placeholder="e.g. Alex Chen"
           placeholderTextColor={theme.colors.ink4}
           autoCapitalize="words"
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>EMAIL</Text>
@@ -174,6 +177,7 @@ export default function CreateAccountScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>PASSWORD</Text>
@@ -184,6 +188,7 @@ export default function CreateAccountScreen() {
           placeholder="Min 6 characters"
           placeholderTextColor={theme.colors.ink4}
           secureTextEntry
+          onFocus={scrollToInput}
         />
 
         <TouchableOpacity

@@ -14,6 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
+import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 function timeToPickerDate(hhmm: string): Date {
@@ -61,6 +62,7 @@ function formatDateStamp(iso: string): { dateStamp: string; shortDate: string; d
 export default function DateVenueScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
+  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
   // Parse existing date if available
   const existingDate = draft.weddingDateISO ? new Date(draft.weddingDateISO + 'T12:00:00Z') : null;
@@ -119,6 +121,7 @@ export default function DateVenueScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
@@ -158,6 +161,7 @@ export default function DateVenueScreen() {
               placeholderTextColor={theme.colors.ink4}
               keyboardType="number-pad"
               maxLength={2}
+              onFocus={scrollToInput}
             />
           </View>
           <View style={{ width: 12 }} />
@@ -171,6 +175,7 @@ export default function DateVenueScreen() {
               placeholderTextColor={theme.colors.ink4}
               keyboardType="number-pad"
               maxLength={4}
+              onFocus={scrollToInput}
             />
           </View>
         </View>
@@ -227,6 +232,7 @@ export default function DateVenueScreen() {
           placeholderTextColor={theme.colors.ink4}
           keyboardType="number-pad"
           maxLength={2}
+          onFocus={scrollToInput}
         />
 
         <Text style={[styles.sectionHead, { marginTop: 20 }]}>VENUE</Text>
@@ -237,6 +243,7 @@ export default function DateVenueScreen() {
           onChangeText={setVenue}
           placeholder="e.g. The Grand Ballroom at Rosewood"
           placeholderTextColor={theme.colors.ink4}
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>SHORT NAME (for display)</Text>
@@ -246,6 +253,7 @@ export default function DateVenueScreen() {
           onChangeText={setVenueShort}
           placeholder="e.g. Rosewood Hotel"
           placeholderTextColor={theme.colors.ink4}
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>CITY / COUNTRY</Text>
@@ -255,6 +263,7 @@ export default function DateVenueScreen() {
           onChangeText={setLocation}
           placeholder="e.g. Santorini, Greece"
           placeholderTextColor={theme.colors.ink4}
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>REGISTRY URL (optional)</Text>
@@ -266,6 +275,7 @@ export default function DateVenueScreen() {
           placeholderTextColor={theme.colors.ink4}
           autoCapitalize="none"
           keyboardType="url"
+          onFocus={scrollToInput}
         />
 
         <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>

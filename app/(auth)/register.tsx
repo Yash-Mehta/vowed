@@ -12,7 +12,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { saveCredentials } from '../../lib/secureAuth';
 import { useAuthStore } from '../../store/authStore';
 import { theme } from '../../constants/theme';
 
@@ -63,7 +62,6 @@ export default function RegisterScreen() {
           throw e;
         }
       }
-      await saveCredentials(email, password);
       if (isNewUser) {
         router.replace('/(auth)/verify-email');
       }

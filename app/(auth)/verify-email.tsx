@@ -12,7 +12,6 @@ import {
 import { useRouter } from 'expo-router';
 import { sendEmailVerification, reload, signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { clearCredentials } from '../../lib/secureAuth';
 import { useAuthStore } from '../../store/authStore';
 import { theme } from '../../constants/theme';
 
@@ -64,7 +63,6 @@ export default function VerifyEmailScreen() {
 
   async function handleCancel() {
     await signOut(auth);
-    await clearCredentials();
     router.replace('/');
   }
 

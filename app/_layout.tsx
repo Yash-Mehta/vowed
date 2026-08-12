@@ -13,7 +13,6 @@ import { auth } from '../lib/firebase';
 import { getUserIndex } from '../lib/firestore';
 import { useAuthStore } from '../store/authStore';
 import { useWeddingConfig } from '../hooks/useWeddingConfig';
-import { tryAutoLogin } from '../lib/secureAuth';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { theme } from '../constants/theme';
 
@@ -86,13 +85,10 @@ export default function RootLayout() {
         setUserDoc(null);
         setLoading(false);
       } else {
-        const loggedIn = await tryAutoLogin();
-        if (!loggedIn) {
-          setUserWeddingIds([]);
-          setUserDoc(null);
-          setWeddingId(null);
-          setLoading(false);
-        }
+        setUserWeddingIds([]);
+        setUserDoc(null);
+        setWeddingId(null);
+        setLoading(false);
       }
     });
     return unsub;

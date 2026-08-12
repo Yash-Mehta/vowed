@@ -18,7 +18,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
-import { clearCredentials } from '../../lib/secureAuth';
 import { updateMember, deleteAccount } from '../../lib/firestore';
 import { getNotificationPermissionStatus } from '../../lib/notifications';
 import { useAuthStore } from '../../store/authStore';
@@ -155,7 +154,6 @@ export default function ProfileScreen() {
             if (!firebaseUser) return;
             try {
               await deleteAccount(firebaseUser.uid, weddingId ?? null);
-              await clearCredentials();
               useAuthStore.getState().clear();
               await auth.currentUser?.delete();
             } catch (e: any) {
@@ -177,7 +175,7 @@ export default function ProfileScreen() {
   async function handleSignOut() {
     Alert.alert('Sign out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: async () => { await clearCredentials(); signOut(auth); } },
+      { text: 'Sign out', style: 'destructive', onPress: () => signOut(auth) },
     ]);
   }
 

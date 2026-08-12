@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
+import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 export default function NamesScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
+  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
   const [person1, setPerson1] = useState(draft.person1First);
   const [person2, setPerson2] = useState(draft.person2First);
 
@@ -39,6 +41,7 @@ export default function NamesScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
@@ -62,6 +65,7 @@ export default function NamesScreen() {
           placeholderTextColor={theme.colors.ink4}
           autoCapitalize="words"
           autoFocus
+          onFocus={scrollToInput}
         />
 
         <Text style={styles.and}>and</Text>
@@ -74,6 +78,7 @@ export default function NamesScreen() {
           placeholder="e.g. Jordan"
           placeholderTextColor={theme.colors.ink4}
           autoCapitalize="words"
+          onFocus={scrollToInput}
         />
 
         {person1 && person2 && (

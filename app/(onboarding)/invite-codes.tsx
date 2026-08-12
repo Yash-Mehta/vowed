@@ -5,11 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
+import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 function generateCode(prefix: string): string {
@@ -24,6 +27,7 @@ function generateCode(prefix: string): string {
 export default function InviteCodesScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
+  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
   const [guestCode, setGuestCode] = useState(
     draft.guestInviteCode || generateCode('G-')
   );
@@ -51,66 +55,76 @@ export default function InviteCodesScreen() {
   }
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      <View style={styles.progress}>
-        <View style={[styles.dot, styles.dotDone]} />
-        <View style={[styles.dot, styles.dotDone]} />
-        <View style={[styles.dot, styles.dotDone]} />
-        <View style={[styles.dot, styles.dotActive]} />
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.progress}>
+          <View style={[styles.dot, styles.dotDone]} />
+          <View style={[styles.dot, styles.dotDone]} />
+          <View style={[styles.dot, styles.dotDone]} />
+          <View style={[styles.dot, styles.dotActive]} />
+        </View>
 
-      <Text style={styles.eyebrow}>Step 4 of 4</Text>
-      <Text style={styles.title}>Invite codes</Text>
-      <Text style={styles.sub}>
-        Share the guest code with your attendees. Use the host code to add other hosts.
-      </Text>
+        <Text style={styles.eyebrow}>Step 4 of 4</Text>
+        <Text style={styles.title}>Invite codes</Text>
+        <Text style={styles.sub}>
+          Share the guest code with your attendees. Use the host code to add other hosts.
+        </Text>
 
-      <View style={styles.codeCard}>
-        <Text style={styles.codeLabel}>GUEST CODE</Text>
-        <Text style={styles.codeHint}>Share this with all attendees</Text>
-        <TextInput
-          style={styles.codeInput}
-          value={guestCode}
-          onChangeText={(t) => setGuestCode(t.toUpperCase())}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={12}
-        />
-        <TouchableOpacity
-          style={styles.regenerate}
-          onPress={() => setGuestCode(generateCode('G-'))}
-          activeOpacity={0.7}>
-          <Text style={styles.regenerateText}>Regenerate</Text>
+        <View style={styles.codeCard}>
+          <Text style={styles.codeLabel}>GUEST CODE</Text>
+          <Text style={styles.codeHint}>Share this with all attendees</Text>
+          <TextInput
+            style={styles.codeInput}
+            value={guestCode}
+            onChangeText={(t) => setGuestCode(t.toUpperCase())}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={12}
+            onFocus={scrollToInput}
+          />
+          <TouchableOpacity
+            style={styles.regenerate}
+            onPress={() => setGuestCode(generateCode('G-'))}
+            activeOpacity={0.7}>
+            <Text style={styles.regenerateText}>Regenerate</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.codeCard, { marginTop: 16 }]}>
+          <Text style={styles.codeLabel}>HOST CODE</Text>
+          <Text style={styles.codeHint}>Share with co-hosts only — gives admin access</Text>
+          <TextInput
+            style={[styles.codeInput, { borderColor: theme.colors.accentDeep }]}
+            value={hostCode}
+            onChangeText={(t) => setHostCode(t.toUpperCase())}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={12}
+            onFocus={scrollToInput}
+          />
+          <TouchableOpacity
+            style={styles.regenerate}
+            onPress={() => setHostCode(generateCode('H-'))}
+            activeOpacity={0.7}>
+            <Text style={styles.regenerateText}>Regenerate</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>
+          <Text style={styles.btnText}>Review & launch</Text>
         </TouchableOpacity>
-      </View>
 
-      <View style={[styles.codeCard, { marginTop: 16 }]}>
-        <Text style={styles.codeLabel}>HOST CODE</Text>
-        <Text style={styles.codeHint}>Share with co-hosts only — gives admin access</Text>
-        <TextInput
-          style={[styles.codeInput, { borderColor: theme.colors.accentDeep }]}
-          value={hostCode}
-          onChangeText={(t) => setHostCode(t.toUpperCase())}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={12}
-        />
-        <TouchableOpacity
-          style={styles.regenerate}
-          onPress={() => setHostCode(generateCode('H-'))}
-          activeOpacity={0.7}>
-          <Text style={styles.regenerateText}>Regenerate</Text>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>
-        <Text style={styles.btnText}>Review & launch</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

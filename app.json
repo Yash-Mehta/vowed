@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vowed",
     "slug": "our-day",
-    "version": "1.4.2",
+    "version": "1.4.3",
     "scheme": "vowed",
     "platforms": [
       "ios",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.vowed.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -78,7 +78,6 @@
       ],
       "expo-media-library",
       "expo-web-browser",
-      "expo-secure-store",
       "@react-native-community/datetimepicker",
       "./plugins/withCxx20",
       [

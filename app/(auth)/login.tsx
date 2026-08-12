@@ -11,9 +11,9 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, inMemoryPersistence, getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../../lib/firebase';
-import { saveCredentials, clearCredentials } from '../../lib/secureAuth';
 import { theme } from '../../constants/theme';
 
 export default function LoginScreen() {
@@ -27,12 +27,11 @@ export default function LoginScreen() {
     if (!email || !password) return;
     setLoading(true);
     try {
+      await setPersistence(
+        auth,
+        rememberMe ? getReactNativePersistence(AsyncStorage) : inMemoryPersistence
+      );
       await signInWithEmailAndPassword(auth, email, password);
-      if (rememberMe) {
-        await saveCredentials(email, password);
-      } else {
-        await clearCredentials();
-      }
       // _layout.tsx handles routing once firebaseUser is set
     } catch (e: any) {
       Alert.alert(

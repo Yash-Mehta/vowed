@@ -15,7 +15,6 @@ import { useAuthStore } from '../store/authStore';
 import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../lib/firestore';
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
-import { clearCredentials } from '../lib/secureAuth';
 import { Sprig } from '../components/Sprig';
 import { theme } from '../constants/theme';
 
@@ -29,7 +28,7 @@ export default function SelectWeddingScreen() {
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: async () => { await clearCredentials(); signOut(auth); },
+        onPress: () => signOut(auth),
       },
     ]);
   }
