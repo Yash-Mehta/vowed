@@ -17,10 +17,18 @@ service cloud.firestore {
     function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
 
     // ── Invite code index ─────────────────────────────────────────────────────
+    // No client read access — codes gate private wedding data and a 4-char
+    // keyspace is brute-forceable at unlimited client read rate. Lookups go
+    // through the validateInviteCode Cloud Function (Admin SDK, rate-limited).
     match /weddingsByCode/{code} {
-      allow read: if true;
+      allow read: if false;
       allow create: if isAuth();
       allow update, delete: if false;
+    }
+
+    // ── Invite code brute-force rate limiting (Cloud Function only) ────────────
+    match /inviteRateLimits/{key} {
+      allow read, write: if false;
     }
 
     // ── User index (maps uid → weddingIds) ────────────────────────────────────

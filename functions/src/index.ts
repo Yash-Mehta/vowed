@@ -99,6 +99,54 @@ export const sendResetEmail = onCall(
   }
 );
 
+// ── Invite code validation (rate-limited) ───────────────────────────────────────
+
+const INVITE_RATE_LIMIT_MAX_ATTEMPTS = 8;
+const INVITE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+// Invite codes gate private wedding data (photos, guest list) and the host
+// code additionally grants admin privileges, so lookups must be rate-limited
+// server-side — clients can no longer read weddingsByCode directly.
+//
+// Sliding-window log (not a fixed window): each doc stores recent attempt
+// timestamps and we count how many fall within the last WINDOW_MS. A fixed
+// window resets at a clock boundary, letting an attacker burst 2x the limit
+// right across the reset; a sliding log has no such boundary to exploit.
+async function enforceInviteRateLimit(ip: string): Promise<void> {
+  const key = ip.replace(/[^a-zA-Z0-9.:-]/g, '_').slice(0, 200) || 'unknown';
+  const ref = db.doc(`inviteRateLimits/${key}`);
+  const now = Date.now();
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? (snap.data() as { attempts: number[] }) : null;
+    const recent = (data?.attempts ?? []).filter((t) => now - t < INVITE_RATE_LIMIT_WINDOW_MS);
+
+    if (recent.length >= INVITE_RATE_LIMIT_MAX_ATTEMPTS) {
+      throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again in a few minutes.');
+    }
+
+    tx.set(ref, { attempts: [...recent, now] });
+  });
+}
+
+const INVITE_CODE_FORMAT = /^[A-Z0-9-]{4,20}$/;
+
+export const validateInviteCode = onCall(async (request) => {
+  const code = (request.data?.code as string | undefined)?.trim().toUpperCase();
+  if (!code || !INVITE_CODE_FORMAT.test(code)) {
+    throw new HttpsError('invalid-argument', 'Invalid code format.');
+  }
+
+  await enforceInviteRateLimit(request.rawRequest.ip ?? 'unknown');
+
+  const snap = await db.doc(`weddingsByCode/${code}`).get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Invalid code.');
+
+  const data = snap.data()!;
+  return { weddingId: data.weddingId, role: data.role, preview: data.preview };
+});
+
 // ── Push notifications ────────────────────────────────────────────────────────
 
 // prefField: member-doc boolean gating this notification type. Absent field = opted in,

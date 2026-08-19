@@ -10,7 +10,8 @@ import {
   arrayRemove,
   FirestoreError,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { httpsCallable, FunctionsError } from 'firebase/functions';
+import { db, functions } from './firebase';
 
 export type UserRole = 'guest' | 'host';
 
@@ -117,13 +118,22 @@ export async function getWeddingPreviews(weddingIds: string[]): Promise<WeddingP
 
 // ── Invite code lookup ─────────────────────────────────────────────────────────
 
+export class InviteCodeRateLimitedError extends Error {}
+
 export async function validateInviteCode(
   code: string
 ): Promise<{ weddingId: string; role: UserRole; preview: CodeIndexDoc['preview'] } | false> {
-  const snap = await getDoc(doc(db, 'weddingsByCode', code));
-  if (!snap.exists()) return false;
-  const data = snap.data() as CodeIndexDoc;
-  return { weddingId: data.weddingId, role: data.role, preview: data.preview };
+  try {
+    const call = httpsCallable<{ code: string }, CodeIndexDoc>(functions, 'validateInviteCode');
+    const res = await call({ code });
+    return { weddingId: res.data.weddingId, role: res.data.role, preview: res.data.preview };
+  } catch (e: unknown) {
+    if (e instanceof FunctionsError && e.code === 'functions/resource-exhausted') {
+      throw new InviteCodeRateLimitedError(e.message);
+    }
+    // not-found (invalid code) and any other error → treat as invalid code
+    return false;
+  }
 }
 
 export async function leaveWedding(uid: string, weddingId: string) {
