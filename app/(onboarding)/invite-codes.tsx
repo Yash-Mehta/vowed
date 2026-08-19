@@ -15,10 +15,13 @@ import { useOnboardingStore } from '../../store/onboardingStore';
 import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
+// 8 random chars from a 32-char alphabet ≈ 1.1 trillion combinations — the
+// server-side rate limit on lookups (functions/src/index.ts) makes brute
+// force infeasible even before accounting for this keyspace.
 function generateCode(prefix: string): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = prefix;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;

@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode, getMember, CodeIndexDoc } from '../../lib/firestore';
+import { validateInviteCode, getMember, CodeIndexDoc, InviteCodeRateLimitedError } from '../../lib/firestore';
 import { SprigDivider } from '../../components/SprigDivider';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
@@ -38,7 +38,18 @@ export default function InviteScreen() {
   async function handleJoin() {
     if (!code.trim()) return;
     setLoading(true);
-    const result = await validateInviteCode(code.trim().toUpperCase());
+    let result: Awaited<ReturnType<typeof validateInviteCode>>;
+    try {
+      result = await validateInviteCode(code.trim().toUpperCase());
+    } catch (e) {
+      setLoading(false);
+      if (e instanceof InviteCodeRateLimitedError) {
+        Alert.alert('Too many attempts', 'Please wait a few minutes before trying again.');
+      } else {
+        Alert.alert('Error', 'Something went wrong. Please try again.');
+      }
+      return;
+    }
     if (!result) {
       setLoading(false);
       Alert.alert('Invalid code', 'Please check the code and try again.');

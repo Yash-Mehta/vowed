@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vowed",
     "slug": "our-day",
-    "version": "1.4.3",
+    "version": "1.4.4",
     "scheme": "vowed",
     "platforms": [
       "ios",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.vowed.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
