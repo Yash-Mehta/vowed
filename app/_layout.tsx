@@ -22,6 +22,7 @@ export default function RootLayout() {
   const {
     setFirebaseUser,
     setUserDoc,
+    setGlobalProfile,
     setLoading,
     setWeddingId,
     setUserWeddingIds,
@@ -73,6 +74,7 @@ export default function RootLayout() {
           setUserWeddingIds([]);
           setWeddingId(null);
           setUserDoc(null);
+          setGlobalProfile(null);
           setLoading(false);
           return;
         }
@@ -83,10 +85,15 @@ export default function RootLayout() {
         setUserWeddingIds(ids);
         setWeddingId(null);
         setUserDoc(null);
+        // Empty displayName means no global profile yet (brand-new user) —
+        // checked as falsy by profile-setup.tsx/create-account.tsx to decide
+        // whether to show the name/photo form.
+        setGlobalProfile({ displayName: idx?.displayName ?? '', photoURL: idx?.photoURL ?? null });
         setLoading(false);
       } else {
         setUserWeddingIds([]);
         setUserDoc(null);
+        setGlobalProfile(null);
         setWeddingId(null);
         setLoading(false);
       }

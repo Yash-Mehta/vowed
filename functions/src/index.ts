@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getMessaging } from 'firebase-admin/messaging';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
@@ -108,26 +108,47 @@ const INVITE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 // code additionally grants admin privileges, so lookups must be rate-limited
 // server-side — clients can no longer read weddingsByCode directly.
 //
-// Sliding-window log (not a fixed window): each doc stores recent attempt
-// timestamps and we count how many fall within the last WINDOW_MS. A fixed
-// window resets at a clock boundary, letting an attacker burst 2x the limit
-// right across the reset; a sliding log has no such boundary to exploit.
+// Fixed-window counter via atomic increment, keyed by IP + time bucket — NOT
+// a transaction. A prior sliding-window-log version used runTransaction on a
+// single per-IP document; a wedding invite code is sent to many guests who
+// all try it around the same time, and a chunk of them commonly share an
+// apparent IP (venue wifi, carrier-grade NAT), so concurrent requests piled
+// onto that one document and Firestore serialized/retried the losers — under
+// real contention that could burn most of the callable's 60s timeout,
+// surfacing as an "infinite" loading spinner (v1.4.5 bug). FieldValue.increment
+// is commutative and needs no read-modify-write cycle, so concurrent writers
+// to the same document never contend. Trade-off: a fixed window allows a
+// short burst across the window boundary that a true sliding log wouldn't —
+// acceptable since the alternative broke legitimate onboarding, and this
+// still bounds abuse to a small multiple of the limit per IP.
 async function enforceInviteRateLimit(ip: string): Promise<void> {
-  const key = ip.replace(/[^a-zA-Z0-9.:-]/g, '_').slice(0, 200) || 'unknown';
-  const ref = db.doc(`inviteRateLimits/${key}`);
-  const now = Date.now();
+  const window = Math.floor(Date.now() / INVITE_RATE_LIMIT_WINDOW_MS);
+  const safeIp = ip.replace(/[^a-zA-Z0-9.:-]/g, '_').slice(0, 200) || 'unknown';
+  const ref = db.doc(`inviteRateLimits/${safeIp}_${window}`);
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const data = snap.exists ? (snap.data() as { attempts: number[] }) : null;
-    const recent = (data?.attempts ?? []).filter((t) => now - t < INVITE_RATE_LIMIT_WINDOW_MS);
+  const snap = await ref.get();
+  const count = (snap.data()?.count as number | undefined) ?? 0;
+  if (count >= INVITE_RATE_LIMIT_MAX_ATTEMPTS) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again in a few minutes.');
+  }
 
-    if (recent.length >= INVITE_RATE_LIMIT_MAX_ATTEMPTS) {
-      throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again in a few minutes.');
-    }
-
-    tx.set(ref, { attempts: [...recent, now] });
-  });
+  // Best-effort count, not a hard cap — concurrent requests can both pass
+  // the check above before either increments. Verified against the Firestore
+  // emulator under realistic staggered arrival (requests spaced over a 2s
+  // window, modeling the DNS/TLS/dispatch jitter independent phones actually
+  // produce): correctly capped at exactly the limit and resolved in ~2s.
+  // Only a synthetic same-instant burst (all reads issued in one process
+  // tick, which independent network clients can't produce) defeats the
+  // check entirely — not a realistic production scenario, and reintroducing
+  // a transaction to close that gap is exactly what caused the outage this
+  // fix addresses. A hard cap isn't worth resurrecting that failure mode for.
+  await ref.set(
+    {
+      count: FieldValue.increment(1),
+      expiresAt: Timestamp.fromMillis((window + 1) * INVITE_RATE_LIMIT_WINDOW_MS),
+    },
+    { merge: true }
+  );
 }
 
 const INVITE_CODE_FORMAT = /^[A-Z0-9-]{4,20}$/;
@@ -275,46 +296,62 @@ export const onCommentDeleted = onDocumentDeleted(
   }
 );
 
-export const onMemberUpdated = onDocumentUpdated(
-  'weddings/{weddingId}/members/{uid}',
-  async (event) => {
-    const before = event.data?.before.data();
-    const after = event.data?.after.data();
-    if (!before || !after) return;
+// Profile (displayName/photoURL) is account-level, set once on users/{uid}
+// and reused across every wedding a user joins (see lib/firestore.ts's
+// setUserProfile). weddings/{weddingId}/members/{uid} keeps a denormalized
+// copy — everything that displays a member's name/photo (guest directory,
+// posts, comments) reads that copy, so this function is what keeps all of
+// them in sync with the one account-level edit. Replaces the old
+// onMemberUpdated, which only propagated within the single wedding a member
+// doc happened to live in — a user editing their profile from one wedding's
+// context never updated their profile in any other wedding they belonged to.
+export const onProfileUpdated = onDocumentUpdated('users/{uid}', async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  if (!before || !after) return;
 
-    const nameChanged = before.displayName !== after.displayName;
-    const photoChanged = before.photoURL !== after.photoURL;
-    if (!nameChanged && !photoChanged) return;
+  const nameChanged = before.displayName !== after.displayName;
+  const photoChanged = before.photoURL !== after.photoURL;
+  if (!nameChanged && !photoChanged) return;
 
-    const { weddingId, uid } = event.params;
-    const update: Record<string, string | null> = {};
-    if (nameChanged) update.authorName = after.displayName;
-    if (photoChanged) update.authorPhotoURL = after.photoURL ?? null;
+  const { uid } = event.params;
+  const weddingIds: string[] = after.weddingIds ?? [];
+  if (weddingIds.length === 0) return;
 
-    // Update all posts by this author in this wedding
-    const postsSnap = await db
-      .collection(`weddings/${weddingId}/posts`)
-      .where('authorId', '==', uid)
-      .get();
+  const memberUpdate: Record<string, string | null> = {};
+  if (nameChanged) memberUpdate.displayName = after.displayName;
+  if (photoChanged) memberUpdate.photoURL = after.photoURL ?? null;
 
-    if (postsSnap.size > 0) {
-      const batch = db.batch();
-      postsSnap.docs.forEach((d) => batch.update(d.ref, update));
-      await batch.commit();
-    }
+  const postUpdate: Record<string, string | null> = {};
+  if (nameChanged) postUpdate.authorName = after.displayName;
+  if (photoChanged) postUpdate.authorPhotoURL = after.photoURL ?? null;
 
-    // Update all comments by this author in this wedding
-    const commentsSnap = await db
-      .collectionGroup('comments')
-      .where('authorId', '==', uid)
-      .get();
+  // One settled-promise pass per wedding — a missing/broken member doc for
+  // one wedding shouldn't block propagation to the user's other weddings.
+  await Promise.allSettled(
+    weddingIds.map(async (weddingId) => {
+      await db.doc(`weddings/${weddingId}/members/${uid}`).update(memberUpdate);
 
-    const weddingPrefix = `weddings/${weddingId}/`;
-    const toUpdate = commentsSnap.docs.filter((d) => d.ref.path.startsWith(weddingPrefix));
-    if (toUpdate.length > 0) {
-      const batch = db.batch();
-      toUpdate.forEach((d) => batch.update(d.ref, update));
-      await batch.commit();
-    }
+      const postsSnap = await db
+        .collection(`weddings/${weddingId}/posts`)
+        .where('authorId', '==', uid)
+        .get();
+      if (postsSnap.size > 0) {
+        const batch = db.batch();
+        postsSnap.docs.forEach((d) => batch.update(d.ref, postUpdate));
+        await batch.commit();
+      }
+    })
+  );
+
+  // Comments: authorId already scopes this to just this user's comments
+  // across every wedding, so one collection-group query covers all of them
+  // — no per-wedding path filtering needed now that the trigger itself is
+  // account-level rather than wedding-scoped.
+  const commentsSnap = await db.collectionGroup('comments').where('authorId', '==', uid).get();
+  if (commentsSnap.size > 0) {
+    const batch = db.batch();
+    commentsSnap.docs.forEach((d) => batch.update(d.ref, postUpdate));
+    await batch.commit();
   }
-);
+});

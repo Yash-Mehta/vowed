@@ -2,9 +2,18 @@ import { create } from 'zustand';
 import { User } from 'firebase/auth';
 import { UserDoc, UserRole } from '../lib/firestore';
 
+export interface GlobalProfile {
+  displayName: string;
+  photoURL: string | null;
+}
+
 interface AuthState {
   firebaseUser: User | null;
   userDoc: UserDoc | null;
+  // Account-level profile — persists across switchWedding(), unlike userDoc
+  // which is fully replaced per wedding. Empty displayName means no global
+  // profile has been set yet (brand-new user).
+  globalProfile: GlobalProfile | null;
   isLoading: boolean;
   role: UserRole | null;
   pendingRole: UserRole;
@@ -13,6 +22,7 @@ interface AuthState {
   userWeddingIds: string[];
   setFirebaseUser: (user: User | null) => void;
   setUserDoc: (doc: UserDoc | null) => void;
+  setGlobalProfile: (profile: GlobalProfile | null) => void;
   setLoading: (loading: boolean) => void;
   setPendingRole: (role: UserRole) => void;
   setWeddingId: (id: string | null) => void;
@@ -25,6 +35,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   firebaseUser: null,
   userDoc: null,
+  globalProfile: null,
   isLoading: true,
   role: null,
   pendingRole: 'guest',
@@ -33,6 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   userWeddingIds: [],
   setFirebaseUser: (user) => set({ firebaseUser: user }),
   setUserDoc: (doc) => set({ userDoc: doc, role: doc?.role ?? null }),
+  setGlobalProfile: (globalProfile) => set({ globalProfile }),
   setLoading: (isLoading) => set({ isLoading }),
   setPendingRole: (pendingRole) => set({ pendingRole }),
   setWeddingId: (weddingId) => set({ weddingId }),
@@ -45,6 +57,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       firebaseUser: null,
       userDoc: null,
+      globalProfile: null,
       role: null,
       pendingRole: 'guest',
       weddingId: null,

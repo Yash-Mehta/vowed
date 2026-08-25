@@ -17,18 +17,22 @@ import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
+import { getUserIndex } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 export default function CreateAccountScreen() {
   const router = useRouter();
-  const { setPendingRole, userDoc } = useAuthStore();
+  const { setPendingRole, globalProfile, setGlobalProfile } = useAuthStore();
   const { update } = useOnboardingStore();
   const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
   const alreadySignedIn = !!auth.currentUser;
+  // Global profile is populated by _layout.tsx's auth-state listener, so
+  // it's already available here whenever the user is mid-session.
+  const hasGlobalProfile = alreadySignedIn && !!globalProfile?.displayName;
 
   const [ownerName, setOwnerName] = useState(
-    alreadySignedIn ? (userDoc?.displayName ?? '') : ''
+    alreadySignedIn ? (globalProfile?.displayName ?? '') : ''
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,28 +60,56 @@ export default function CreateAccountScreen() {
     try {
       setPendingRole('host');
       update({ ownerName: ownerName.trim() });
+      let isNewUser = false;
       try {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await sendEmailVerification(cred.user);
+        isNewUser = true;
       } catch (e: any) {
         if (e.code === 'auth/email-already-in-use') {
           try {
-            await signInWithEmailAndPassword(auth, email.trim(), password);
+            const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+            // We don't know until this resolves whether this account
+            // already has a global profile — the store's globalProfile
+            // isn't populated yet (that happens async via _layout.tsx's
+            // own auth-state listener), so fetch it directly here and use
+            // their real name instead of whatever they just typed.
+            const idx = await getUserIndex(cred.user.uid);
+            if (idx?.displayName) {
+              update({ ownerName: idx.displayName });
+              setGlobalProfile({ displayName: idx.displayName, photoURL: idx.photoURL ?? null });
+            }
+            Alert.alert('Welcome back', 'You already had an account with this email — we signed you in instead of creating a new one.');
           } catch (signInError: any) {
             const isWrongPassword =
               signInError.code === 'auth/wrong-password' ||
               signInError.code === 'auth/invalid-credential';
-            throw new Error(
+            Alert.alert(
+              'Account already exists',
               isWrongPassword
                 ? 'An account with this email exists. Please sign in with your correct password, or use "Forgot password".'
-                : 'An account with this email already exists. Please sign in instead.'
+                : 'An account with this email exists. Please sign in instead.',
+              [
+                { text: 'Sign in', onPress: () => router.replace('/(auth)/login') },
+                { text: 'Cancel', style: 'cancel' },
+              ]
             );
+            return;
           }
         } else {
           throw e;
         }
       }
-      router.replace('/(auth)/verify-email');
+      if (isNewUser) {
+        router.replace('/(auth)/verify-email');
+      } else {
+        // Existing account, signed in via the fallback above — still needs
+        // to continue into host onboarding. Unlike the guest invite flow,
+        // there's no pendingWeddingId here to steer _layout.tsx's generic
+        // guard, so an existing multi-wedding user would otherwise get
+        // routed to /select-wedding instead of where they were headed.
+        router.replace('/(onboarding)/names');
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -105,18 +137,21 @@ export default function CreateAccountScreen() {
           <Text style={styles.eyebrow}>Step 1 of 4</Text>
           <Text style={styles.title}>Plan your wedding</Text>
           <Text style={styles.sub}>
-            You're already signed in. Just confirm your name and we'll set up your wedding.
+            {hasGlobalProfile
+              ? "You're already signed in — we'll set up your wedding under your existing profile."
+              : "You're already signed in. Just confirm your name and we'll set up your wedding."}
           </Text>
 
           <Text style={styles.label}>YOUR NAME</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, hasGlobalProfile && styles.inputReadOnly]}
             value={ownerName}
             onChangeText={setOwnerName}
             placeholder="e.g. Alex Chen"
             placeholderTextColor={theme.colors.ink4}
             autoCapitalize="words"
-            autoFocus
+            autoFocus={!hasGlobalProfile}
+            editable={!hasGlobalProfile}
             onFocus={scrollToInput}
           />
 
@@ -204,6 +239,10 @@ export default function CreateAccountScreen() {
         <TouchableOpacity style={styles.back} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.back} onPress={() => router.push('/(auth)/login')}>
+          <Text style={[styles.backText, { color: theme.colors.accent }]}>Already have an account? Sign in</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -234,6 +273,7 @@ const styles = StyleSheet.create({
     color: theme.colors.ink, backgroundColor: theme.colors.card, fontFamily: theme.fonts.sans,
     letterSpacing: 0,
   },
+  inputReadOnly: { backgroundColor: theme.colors.surface2, color: theme.colors.ink3 },
   btn: {
     backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill,
     padding: 16, alignItems: 'center', marginTop: 28,

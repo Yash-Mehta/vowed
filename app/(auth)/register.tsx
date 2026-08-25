@@ -42,6 +42,28 @@ export default function RegisterScreen() {
         if (e.code === 'auth/email-already-in-use') {
           try {
             await signInWithEmailAndPassword(auth, email, password);
+            // _layout.tsx deliberately excludes the register screen from
+            // its auto-redirect (so it doesn't yank someone away mid-form),
+            // which means it never navigates away once we're already sat
+            // on this screen — unlike a fresh signup, which explicitly
+            // routes via the isNewUser branch below. Navigate explicitly
+            // here too, same destination verify-email.tsx uses.
+            Alert.alert(
+              'Welcome back',
+              'You already had an account with this email — we signed you in instead of creating a new one.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    if (role === 'host' && !weddingId) {
+                      router.replace('/(onboarding)/names');
+                    } else {
+                      router.replace('/(auth)/profile-setup');
+                    }
+                  },
+                },
+              ]
+            );
           } catch (signInError: any) {
             const isWrongPassword =
               signInError.code === 'auth/wrong-password' ||

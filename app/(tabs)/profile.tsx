@@ -18,7 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
-import { updateMember, deleteAccount } from '../../lib/firestore';
+import { updateMember, deleteAccount, setUserProfile } from '../../lib/firestore';
 import { getNotificationPermissionStatus } from '../../lib/notifications';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
@@ -27,7 +27,7 @@ import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { firebaseUser, userDoc, weddingId, setUserDoc, setWeddingId } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId, setUserDoc, setWeddingId, setGlobalProfile } = useAuthStore();
   const [displayName, setDisplayName] = useState(userDoc?.displayName ?? '');
   const [howTheyKnow, setHowTheyKnow] = useState(userDoc?.howTheyKnow ?? '');
   const [isSingle, setIsSingle] = useState(userDoc?.isSingle ?? false);
@@ -104,7 +104,12 @@ export default function ProfileScreen() {
       const storageRef = ref(storage, `avatars/${firebaseUser.uid}.jpg`);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const url = await getDownloadURL(storageRef);
-      if (weddingId) await updateMember(weddingId, firebaseUser.uid, { photoURL: url });
+      // Global profile is the source of truth — onProfileUpdated (Cloud
+      // Function) fans this out to every wedding's member doc, posts, and
+      // comments. Update local state immediately too, for this wedding's
+      // UI, rather than waiting on the function + next auth-state cycle.
+      await setUserProfile(firebaseUser.uid, { displayName: userDoc?.displayName ?? displayName, photoURL: url });
+      setGlobalProfile({ displayName: userDoc?.displayName ?? displayName, photoURL: url });
       setUserDoc({ ...userDoc!, photoURL: url });
     } catch (e) {
       Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
@@ -130,9 +135,17 @@ export default function ProfileScreen() {
     setSaving(true);
     try {
       if (!weddingId) return;
-      const update = { displayName: displayName.trim(), howTheyKnow: howTheyKnow.trim() };
-      await updateMember(weddingId, firebaseUser.uid, update);
-      setUserDoc({ ...userDoc!, ...update });
+      const name = displayName.trim();
+      const know = howTheyKnow.trim();
+      // displayName is account-level (users/{uid}) — onProfileUpdated fans
+      // it out to every wedding this account belongs to. howTheyKnow stays
+      // per-wedding, written directly to this wedding's member doc.
+      await Promise.all([
+        setUserProfile(firebaseUser.uid, { displayName: name, photoURL: userDoc?.photoURL ?? photoURI }),
+        updateMember(weddingId, firebaseUser.uid, { howTheyKnow: know }),
+      ]);
+      setGlobalProfile({ displayName: name, photoURL: userDoc?.photoURL ?? photoURI });
+      setUserDoc({ ...userDoc!, displayName: name, howTheyKnow: know });
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not save changes. Please try again.');

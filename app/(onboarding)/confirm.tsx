@@ -14,7 +14,7 @@ import { db } from '../../lib/firebase';
 import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { createMember, addWeddingToIndex } from '../../lib/firestore';
+import { createMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -28,7 +28,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function ConfirmScreen() {
   const router = useRouter();
-  const { setWeddingId, setUserDoc, setUserWeddingIds, userWeddingIds } = useAuthStore();
+  const { setWeddingId, setUserDoc, setUserWeddingIds, userWeddingIds, globalProfile, setGlobalProfile } = useAuthStore();
   const { draft, reset } = useOnboardingStore();
   const [loading, setLoading] = useState(false);
 
@@ -105,11 +105,21 @@ export default function ConfirmScreen() {
         },
       });
 
+      // An existing account's real name/photo take priority over the
+      // onboarding draft — the draft only matters for genuinely new users,
+      // since a returning host shouldn't have their avatar reset to blank.
+      const displayName = globalProfile?.displayName || draft.ownerName;
+      const photoURL = globalProfile?.photoURL ?? null;
+      if (!globalProfile?.displayName) {
+        await setUserProfile(uid, { displayName, photoURL });
+        setGlobalProfile({ displayName, photoURL });
+      }
+
       // Register host as first member
       await createMember(weddingId, uid, {
-        displayName: draft.ownerName,
+        displayName,
         howTheyKnow: 'Host',
-        photoURL: null,
+        photoURL,
         role: 'host',
       });
 
@@ -117,9 +127,9 @@ export default function ConfirmScreen() {
       setUserWeddingIds([...userWeddingIds, weddingId]);
       setWeddingId(weddingId);
       setUserDoc({
-        displayName: draft.ownerName,
+        displayName,
         howTheyKnow: 'Host',
-        photoURL: null,
+        photoURL,
         role: 'host',
         fcmToken: null,
         createdAt: null,

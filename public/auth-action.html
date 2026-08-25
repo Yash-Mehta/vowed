@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vowed</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #faf9f7;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #b07d5a;
+      margin-bottom: 24px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 12px; }
+    p { font-size: 15px; line-height: 1.6; color: #555; margin-bottom: 20px; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
+    }
+    input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      color: #1a1a1a;
+      margin-bottom: 18px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #b07d5a; }
+    button {
+      width: 100%;
+      background: #b07d5a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:hover { background: #96684a; }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .error {
+      background: #fdf0ef;
+      border-left: 3px solid #c0392b;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #a93226;
+      margin-bottom: 20px;
+      line-height: 1.5;
+      display: none;
+    }
+    .field-error { color: #a93226; font-size: 13px; margin: -12px 0 16px; display: none; }
+    .icon { font-size: 40px; margin-bottom: 16px; }
+    .hidden { display: none !important; }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: -3px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .footer {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #999;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .footer a { color: #b07d5a; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Vowed</div>
+
+    <div id="loading-section">
+      <p>Loading…</p>
+    </div>
+
+    <!-- Email verification -->
+    <div id="verify-success" class="hidden">
+      <div class="icon">✓</div>
+      <h1>Email verified</h1>
+      <p>Your email has been confirmed. Head back to the Vowed app to continue.</p>
+    </div>
+
+    <!-- Password reset form -->
+    <div id="reset-form-section" class="hidden">
+      <h1>Reset your password</h1>
+      <p id="reset-email-line"></p>
+      <div class="error" id="reset-error"></div>
+      <form id="reset-form">
+        <label for="password">New password</label>
+        <input type="password" id="password" placeholder="Min 6 characters" autocomplete="new-password" required />
+        <div class="field-error" id="password-error"></div>
+        <label for="confirm-password">Confirm new password</label>
+        <input type="password" id="confirm-password" autocomplete="new-password" required />
+        <div class="field-error" id="confirm-password-error"></div>
+        <button type="submit" id="reset-submit">Set new password</button>
+      </form>
+    </div>
+
+    <div id="reset-success" class="hidden">
+      <div class="icon">✓</div>
+      <h1>Password updated</h1>
+      <p>Your password has been changed. Head back to the Vowed app and sign in with your new password.</p>
+    </div>
+
+    <!-- Generic error (expired/invalid code, unsupported mode) -->
+    <div id="generic-error-section" class="hidden">
+      <h1>Link expired or invalid</h1>
+      <p id="generic-error-text">This link is no longer valid. Please request a new one from the Vowed app.</p>
+    </div>
+
+    <div class="footer">
+      Questions? Contact us at <a href="mailto:support@vowed.app">support@vowed.app</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+    import {
+      getAuth,
+      applyActionCode,
+      verifyPasswordResetCode,
+      confirmPasswordReset,
+    } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+
+    const firebaseConfig = {
+      apiKey: 'AIzaSyDbK-WFoJOWTR9bsQuF-u6vV7HlR4j5mcc',
+      authDomain: 'our-day-39d9d.firebaseapp.com',
+      projectId: 'our-day-39d9d',
+      storageBucket: 'our-day-39d9d.firebasestorage.app',
+      messagingSenderId: '934591376228',
+      appId: '1:934591376228:web:701f903f68faa55887a871',
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    function show(id) {
+      ['loading-section', 'verify-success', 'reset-form-section', 'reset-success', 'generic-error-section']
+        .forEach((sectionId) => document.getElementById(sectionId).classList.toggle('hidden', sectionId !== id));
+    }
+
+    function showGenericError(message) {
+      if (message) document.getElementById('generic-error-text').textContent = message;
+      show('generic-error-section');
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const oobCode = params.get('oobCode');
+
+    if (!oobCode) {
+      showGenericError();
+    } else if (mode === 'verifyEmail') {
+      applyActionCode(auth, oobCode)
+        .then(() => show('verify-success'))
+        .catch(() => showGenericError());
+    } else if (mode === 'resetPassword') {
+      verifyPasswordResetCode(auth, oobCode)
+        .then((email) => {
+          document.getElementById('reset-email-line').textContent = `Enter a new password for ${email}.`;
+          show('reset-form-section');
+        })
+        .catch(() => showGenericError());
+
+      document.getElementById('reset-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const passwordError = document.getElementById('password-error');
+        const confirmError = document.getElementById('confirm-password-error');
+        const resetError = document.getElementById('reset-error');
+        passwordError.style.display = 'none';
+        confirmError.style.display = 'none';
+        resetError.style.display = 'none';
+
+        if (password.length < 6) {
+          passwordError.textContent = 'Password must be at least 6 characters.';
+          passwordError.style.display = 'block';
+          return;
+        }
+        if (password !== confirmPassword) {
+          confirmError.textContent = 'Passwords do not match.';
+          confirmError.style.display = 'block';
+          return;
+        }
+
+        const submitBtn = document.getElementById('reset-submit');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>';
+
+        confirmPasswordReset(auth, oobCode, password)
+          .then(() => show('reset-success'))
+          .catch((err) => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Set new password';
+            resetError.textContent = err.code === 'auth/weak-password'
+              ? 'Please choose a stronger password.'
+              : 'Something went wrong. Please request a new reset link and try again.';
+            resetError.style.display = 'block';
+          });
+      });
+    } else {
+      // recoverEmail and any unrecognized mode aren't used by this app today
+      showGenericError('This link isn\'t supported here. Please return to the Vowed app.');
+    }
+  </script>
+</body>
+</html>

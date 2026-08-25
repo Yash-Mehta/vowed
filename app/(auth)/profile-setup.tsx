@@ -15,13 +15,26 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, getMember, addWeddingToIndex } from '../../lib/firestore';
-import { Avatar } from '../../components/Avatar';
+import { createMember, getMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
   const router = useRouter();
-  const { pendingRole: role, pendingWeddingId, setUserDoc, setPendingWeddingId, setUserWeddingIds, userWeddingIds } = useAuthStore();
+  const {
+    pendingRole: role,
+    pendingWeddingId,
+    globalProfile,
+    setUserDoc,
+    setGlobalProfile,
+    setPendingWeddingId,
+    setUserWeddingIds,
+    userWeddingIds,
+  } = useAuthStore();
+  // A non-empty displayName on the global profile means this account has
+  // already set up a profile (on this wedding or another) — skip asking
+  // for name/photo again and only collect what's actually wedding-specific.
+  const isReturningUser = !!globalProfile?.displayName;
+
   const [displayName, setDisplayName] = useState('');
   const [howTheyKnow, setHowTheyKnow] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -67,8 +80,10 @@ export default function ProfileSetupScreen() {
   }
 
   async function handleComplete() {
-    if (!displayName.trim() || !howTheyKnow.trim()) {
-      Alert.alert('Required', 'Please fill in your name and how you know the couple.');
+    if (!howTheyKnow.trim() || (!isReturningUser && !displayName.trim())) {
+      Alert.alert('Required', isReturningUser
+        ? 'Please fill in how you know the couple.'
+        : 'Please fill in your name and how you know the couple.');
       return;
     }
     if (!pendingWeddingId) {
@@ -94,10 +109,23 @@ export default function ProfileSetupScreen() {
         router.replace('/select-wedding');
         return;
       }
-      let photoURL: string | null = null;
-      if (avatarUri) photoURL = await uploadAvatar(uid, avatarUri);
+
+      let name: string;
+      let photoURL: string | null;
+      if (isReturningUser && globalProfile) {
+        name = globalProfile.displayName;
+        photoURL = globalProfile.photoURL;
+      } else {
+        name = displayName.trim();
+        photoURL = avatarUri ? await uploadAvatar(uid, avatarUri) : null;
+        // Seed the global profile so future weddings this account joins
+        // skip this form entirely.
+        await setUserProfile(uid, { displayName: name, photoURL });
+        setGlobalProfile({ displayName: name, photoURL });
+      }
+
       const memberData = {
-        displayName: displayName.trim(),
+        displayName: name,
         howTheyKnow: howTheyKnow.trim(),
         photoURL,
         role,
@@ -120,26 +148,31 @@ export default function ProfileSetupScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
       contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Set up your profile</Text>
+      <Text style={styles.title}>{isReturningUser ? 'Join this wedding' : 'Set up your profile'}</Text>
 
-      <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarPlaceholderText}>Add photo</Text>
-          </View>
-        )}
-        <Text style={styles.changePhoto}>Tap to add photo</Text>
-      </TouchableOpacity>
+      {!isReturningUser && (
+        <>
+          <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>Add photo</Text>
+              </View>
+            )}
+            <Text style={styles.changePhoto}>Tap to add photo</Text>
+          </TouchableOpacity>
 
-      <TextInput
-        style={styles.input}
-        value={displayName}
-        onChangeText={setDisplayName}
-        placeholder="Your name"
-        placeholderTextColor={theme.colors.ink4}
-      />
+          <TextInput
+            style={styles.input}
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Your name"
+            placeholderTextColor={theme.colors.ink4}
+          />
+        </>
+      )}
+
       <TextInput
         style={[styles.input, styles.multiline]}
         value={howTheyKnow}
