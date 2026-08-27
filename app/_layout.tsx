@@ -106,6 +106,7 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
     const inSelectWedding = segments[0] === 'select-wedding';
+    const inSettings = segments[0] === 'settings';
 
     const emailVerified = firebaseUser?.emailVerified ?? true;
     const onVerifyScreen = segments[1] === 'verify-email';
@@ -141,7 +142,7 @@ export default function RootLayout() {
           segments[1] === 'profile-setup' ||
           segments[1] === 'register' ||
           segments[1] === 'verify-email';
-        if (!inSelectWedding && !inOnboarding && !onMidJoinScreen) {
+        if (!inSelectWedding && !inSettings && !inOnboarding && !onMidJoinScreen) {
           router.replace('/select-wedding');
         }
       } else {

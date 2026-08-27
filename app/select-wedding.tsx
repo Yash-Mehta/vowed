@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { useAuthStore } from '../store/authStore';
 import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../lib/firestore';
@@ -106,6 +107,12 @@ export default function SelectWeddingScreen() {
       <LinearGradient
         colors={[theme.colors.wineDeep, theme.colors.countdownEnd]}
         style={styles.header}>
+        <TouchableOpacity
+          style={styles.settingsBtn}
+          onPress={() => router.push('/settings')}
+          hitSlop={12}>
+          <Ionicons name="settings-outline" size={22} color={theme.colors.creamOnWine} />
+        </TouchableOpacity>
         <View style={styles.sprigRow}>
           <Sprig size={34} color={theme.colors.goldSoft} flip />
           <Sprig size={34} color={theme.colors.goldSoft} />
@@ -183,6 +190,16 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     paddingHorizontal: 32,
     alignItems: 'center',
+    position: 'relative',
+  },
+  settingsBtn: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sprigRow: { flexDirection: 'row', gap: 12, marginBottom: 4, opacity: 0.9 },
   appName: {
