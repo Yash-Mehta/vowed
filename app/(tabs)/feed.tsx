@@ -233,13 +233,16 @@ export default function FeedScreen() {
             </LinearGradient>
           </>
         }
-        renderItem={({ item }) =>
-          item.type === 'announcement' ? (
+        renderItem={({ item }) => {
+          const isOwnPost = item.authorId === firebaseUser?.uid;
+          const canDelete = role === 'host' || isOwnPost;
+          return item.type === 'announcement' ? (
             <AnnouncementCard
               post={item}
               isHost={role === 'host'}
+              isOwnPost={isOwnPost}
               onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
-              onDelete={role === 'host' ? () => handleDelete(item) : undefined}
+              onDelete={canDelete ? () => handleDelete(item) : undefined}
               onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
             />
           ) : (
@@ -250,7 +253,8 @@ export default function FeedScreen() {
               onLikeCountPress={() => setActiveLikesPostId(item.id)}
               onCommentPress={() => setActivePostId(item.id)}
               isHost={role === 'host'}
-              onDelete={role === 'host' ? () => handleDelete(item) : undefined}
+              isOwnPost={isOwnPost}
+              onDelete={canDelete ? () => handleDelete(item) : undefined}
               onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
               onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
               onDownload={
@@ -259,8 +263,8 @@ export default function FeedScreen() {
                   : undefined
               }
             />
-          )
-        }
+          );
+        }}
         ListEmptyComponent={
           <EmptyState
             title="No posts yet"

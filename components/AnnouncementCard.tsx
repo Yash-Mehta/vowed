@@ -8,12 +8,14 @@ import { theme } from '../constants/theme';
 interface Props {
   post: Post;
   isHost?: boolean;
+  isOwnPost?: boolean;
   onTogglePin?: () => void;
   onDelete?: () => void;
   onEdit?: (newCaption: string) => void;
 }
 
-export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }: Props) {
+export function AnnouncementCard({ post, isHost, isOwnPost, onTogglePin, onDelete, onEdit }: Props) {
+  const canManage = isHost || isOwnPost;
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption);
@@ -42,7 +44,7 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
         <View style={styles.header}>
           <Avatar uri={post.authorPhotoURL} name={post.authorName} size={32} />
           <Text style={styles.authorName}>{post.authorName}</Text>
-          {isHost && (
+          {canManage && onDelete && (
             <TouchableOpacity onPress={() => setMenuOpen(true)} activeOpacity={0.7} style={styles.menuBtn}>
               <Text style={styles.menuBtnText}>· · ·</Text>
             </TouchableOpacity>
@@ -73,13 +75,17 @@ export function AnnouncementCard({ post, isHost, onTogglePin, onDelete, onEdit }
         )}
       </View>
     </View>
-    {isHost && (
+    {canManage && onDelete && (
       <OptionsSheet
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         options={[
-          { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
-          { label: 'Edit', onPress: () => setEditing(true) },
+          ...(isHost
+            ? [
+                { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
+                { label: 'Edit', onPress: () => setEditing(true) },
+              ]
+            : []),
           { label: 'Delete', onPress: onDelete, destructive: true },
         ]}
       />

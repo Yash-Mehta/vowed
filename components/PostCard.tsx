@@ -21,11 +21,13 @@ import { theme } from '../constants/theme';
 
 export interface Post {
   id: string;
+  authorId: string;
   authorName: string;
   authorPhotoURL: string | null;
   type: 'photo' | 'announcement';
   photoURL: string | null;
   photoURLs?: string[];
+  photoAspectRatio?: number;
   caption: string;
   likeCount: number;
   commentCount: number;
@@ -40,13 +42,15 @@ interface Props {
   onLikeCountPress?: () => void;
   onCommentPress: () => void;
   isHost?: boolean;
+  isOwnPost?: boolean;
   onDelete?: () => void;
   onTogglePin?: () => void;
   onEdit?: (newCaption: string) => void;
   onDownload?: (url: string) => void;
 }
 
-export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress, isHost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
+export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress, isHost, isOwnPost, onDelete, onTogglePin, onEdit, onDownload }: Props) {
+  const canManage = isHost || isOwnPost;
   const heartScale = useRef(new Animated.Value(1)).current;
   const timeAgo = post.createdAt?.toDate ? formatAgo(post.createdAt.toDate()) : '';
   const { width: windowWidth } = useWindowDimensions();
@@ -122,16 +126,16 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
           <Text style={styles.authorName}>{post.authorName}</Text>
           <Text style={styles.timestamp}>{timeAgo}</Text>
         </View>
-        {isHost && onDelete && (
+        {canManage && onDelete && (
           <TouchableOpacity onPress={() => setMenuOpen(true)} activeOpacity={0.7} style={styles.hostBadge}>
             <Text style={styles.hostBadgeText}>· · ·</Text>
           </TouchableOpacity>
         )}
       </View>
       {photos.length > 0 && (
-        <View style={styles.photoContainer}>
+        <View style={[styles.photoContainer, { aspectRatio: post.photoAspectRatio ?? 4 / 3 }]}>
           {photos.length === 1 ? (
-            <Image source={{ uri: photos[0] }} style={styles.photo} resizeMode="cover" />
+            <Image source={{ uri: photos[0] }} style={styles.photo} resizeMode="contain" />
           ) : (
             <>
               <FlatList
@@ -145,7 +149,7 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
                   <Image
                     source={{ uri: item }}
                     style={[styles.photo, { width: photoWidth }]}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 )}
               />
@@ -216,13 +220,17 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
         </TouchableOpacity>
       </View>
     </View>
-    {isHost && onDelete && (
+    {canManage && onDelete && (
       <OptionsSheet
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         options={[
-          { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
-          { label: 'Edit caption', onPress: () => setEditing(true) },
+          ...(isHost
+            ? [
+                { label: post.pinned ? 'Unpin' : 'Pin to top', onPress: onTogglePin },
+                { label: 'Edit caption', onPress: () => setEditing(true) },
+              ]
+            : []),
           { label: 'Delete post', onPress: onDelete, destructive: true },
         ]}
       />
@@ -292,7 +300,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     fontFamily: theme.fonts.sans,
   },
-  photoContainer: { width: '100%', aspectRatio: 4 / 3 },
+  photoContainer: { width: '100%', backgroundColor: '#000' },
   photo: { width: '100%', height: '100%' },
   photoCounter: {
     position: 'absolute',

@@ -151,6 +151,8 @@ export function CommentSheet({ postId, onClose }: Props) {
             onChangeText={setText}
             placeholder="Add a comment…"
             placeholderTextColor={theme.colors.ink4}
+            multiline
+            blurOnSubmit={false}
             returnKeyType="send"
             onSubmitEditing={handleSend}
             autoCorrect={false}
@@ -221,7 +223,7 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingTop: 12,
     paddingHorizontal: 12,
     borderTopWidth: 0.5,
@@ -231,14 +233,16 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    maxHeight: 100,
     borderWidth: 1,
     borderColor: theme.colors.line,
-    borderRadius: theme.radii.pill,
+    borderRadius: theme.radii.lg,
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 15,
     color: theme.colors.ink,
     fontFamily: theme.fonts.sans,
+    textAlignVertical: 'top',
   },
   sendBtn: {
     paddingHorizontal: 14,
