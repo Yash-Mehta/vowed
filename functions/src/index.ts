@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getMessaging } from 'firebase-admin/messaging';
+import { getStorage } from 'firebase-admin/storage';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -293,6 +294,56 @@ export const onCommentDeleted = onDocumentDeleted(
     await db.doc(`weddings/${weddingId}/posts/${postId}`).update({
       commentCount: FieldValue.increment(-1),
     });
+  }
+);
+
+async function deleteSubcollection(parentPath: string, colId: string): Promise<void> {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const snap = await db.collection(`${parentPath}/${colId}`).limit(100).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+
+// Firebase Storage download URLs encode the object path between "/o/" and
+// the "?" query string, URL-encoded — this reverses that to get the path
+// bucket.file() needs. Admin SDK bypasses storage.rules, so no rules change
+// is needed for this deletion to work.
+function storagePathFromDownloadURL(url: string): string | null {
+  const match = url.match(/\/o\/([^?]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Deleting a post left its comments/likes subcollections and Storage photo
+// file(s) orphaned — no function did this cleanup before v1.4.9, and no
+// storage.rules delete permission existed for posts either. This closes that
+// gap now that guests (not just hosts) can delete posts, since it will be
+// exercised far more often.
+export const onPostDeleted = onDocumentDeleted(
+  'weddings/{weddingId}/posts/{postId}',
+  async (event) => {
+    const post = event.data?.data();
+    if (!post) return;
+    const { weddingId, postId } = event.params;
+    const postPath = `weddings/${weddingId}/posts/${postId}`;
+
+    await Promise.allSettled([
+      deleteSubcollection(postPath, 'comments'),
+      deleteSubcollection(postPath, 'likes'),
+    ]);
+
+    const urls: string[] = post.photoURLs?.length ? post.photoURLs : post.photoURL ? [post.photoURL] : [];
+    const bucket = getStorage().bucket();
+    await Promise.allSettled(
+      urls.map(async (url) => {
+        const path = storagePathFromDownloadURL(url);
+        if (!path) return;
+        await bucket.file(path).delete({ ignoreNotFound: true });
+      })
+    );
   }
 );
 

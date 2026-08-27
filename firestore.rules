@@ -57,7 +57,8 @@ service cloud.firestore {
       match /posts/{postId} {
         allow read: if isMember(weddingId);
         allow create: if isMember(weddingId);
-        allow update, delete: if isHost(weddingId);
+        allow update: if isHost(weddingId);
+        allow delete: if isOwner(resource.data.authorId) || isHost(weddingId);
 
         match /comments/{commentId} {
           allow read: if isMember(weddingId);

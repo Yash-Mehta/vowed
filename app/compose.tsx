@@ -28,16 +28,27 @@ export default function ComposeScreen() {
   const { firebaseUser, userDoc, weddingId, role } = useAuthStore();
   const [caption, setCaption] = useState('');
   const [imageURIs, setImageURIs] = useState<string[]>([]);
+  const [firstPhotoAspectRatio, setFirstPhotoAspectRatio] = useState<number | null>(null);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [posting, setPosting] = useState(false);
 
-  function appendImages(uris: string[]) {
-    setImageURIs((prev) => [...prev, ...uris].slice(0, MAX_PHOTOS));
+  function appendImages(assets: { uri: string; width: number; height: number }[]) {
+    setImageURIs((prev) => {
+      if (prev.length === 0 && assets[0]) {
+        const ratio = assets[0].width / assets[0].height;
+        setFirstPhotoAspectRatio(Math.min(1.91, Math.max(0.8, ratio)));
+      }
+      return [...prev, ...assets.map((a) => a.uri)].slice(0, MAX_PHOTOS);
+    });
   }
 
   function removeImage(uri: string) {
-    setImageURIs((prev) => prev.filter((u) => u !== uri));
+    setImageURIs((prev) => {
+      const next = prev.filter((u) => u !== uri);
+      if (next.length === 0) setFirstPhotoAspectRatio(null);
+      return next;
+    });
   }
 
   async function pickImage() {
@@ -50,8 +61,8 @@ export default function ComposeScreen() {
             Alert.alert('Camera access needed', 'Please allow camera access in Settings.');
             return;
           }
-          const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.85 });
-          if (!result.canceled && result.assets[0]) appendImages([result.assets[0].uri]);
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+          if (!result.canceled && result.assets[0]) appendImages([result.assets[0]]);
         },
       },
       {
@@ -64,7 +75,7 @@ export default function ComposeScreen() {
             quality: 0.85,
           });
           if (!result.canceled && result.assets.length > 0) {
-            appendImages(result.assets.map((a) => a.uri));
+            appendImages(result.assets);
           }
         },
       },
@@ -96,6 +107,7 @@ export default function ComposeScreen() {
         caption: caption.trim(),
         photoURL: photoURLs[0] ?? null,
         photoURLs,
+        photoAspectRatio: photoURLs.length > 0 ? firstPhotoAspectRatio : null,
         authorId: firebaseUser.uid,
         authorName: userDoc.displayName,
         authorPhotoURL: userDoc.photoURL,
