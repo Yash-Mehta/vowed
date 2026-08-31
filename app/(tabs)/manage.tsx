@@ -15,7 +15,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   collection,
   onSnapshot,
@@ -520,12 +520,12 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
     return { weddingDateISO, dateStamp, displayDate, shortDate };
   }
 
-  function onDateChange(_: any, date?: Date) {
+  function onDateChange(_: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (date) setWeddingDate(date);
   }
 
-  function onTimeChange(_: any, date?: Date) {
+  function onTimeChange(_: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowTimePicker(false);
     if (date) setCeremonyTime(dateToTimeString(date));
   }
@@ -937,18 +937,18 @@ function dateToTimeString(date: Date): string {
 }
 
 function EventForm({ fields, onChange, onSubmit, onCancel, submitting, mode }: FormProps) {
-  const set = (key: keyof EventFields) => (val: any) => onChange({ ...fields, [key]: val });
+  const set = <K extends keyof EventFields>(key: K) => (val: EventFields[K]) => onChange({ ...fields, [key]: val });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const pickerDate = fields.day ? new Date(fields.day + 'T12:00:00') : new Date();
   const pickerTime = timeStringToDate(fields.time);
 
-  function onDateChange(_: any, date?: Date) {
+  function onDateChange(_: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (date) set('day')(isoFromDate(date));
   }
 
-  function onTimeChange(_: any, date?: Date) {
+  function onTimeChange(_: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowTimePicker(false);
     if (date) set('time')(dateToTimeString(date));
   }

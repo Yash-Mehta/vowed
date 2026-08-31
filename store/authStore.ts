@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { User } from 'firebase/auth';
 import { UserDoc, UserRole } from '../lib/firestore';
 
-export interface GlobalProfile {
+interface GlobalProfile {
   displayName: string;
   photoURL: string | null;
 }
