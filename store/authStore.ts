@@ -5,6 +5,7 @@ import { UserDoc, UserRole } from '../lib/firestore';
 interface GlobalProfile {
   displayName: string;
   photoURL: string | null;
+  phoneNumber: string | null;
 }
 
 interface AuthState {

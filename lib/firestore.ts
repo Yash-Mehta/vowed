@@ -41,6 +41,10 @@ export interface UserIndexDoc {
   // UserDoc copy above is denormalized from this.
   displayName?: string;
   photoURL?: string | null;
+  // Set via Admin SDK backfill or the verifyPhoneOtp Cloud Function — never
+  // written by the client. Display-only; the Auth record's phoneNumber is
+  // the source of truth for sign-in.
+  phoneNumber?: string | null;
 }
 
 export interface CodeIndexDoc {
@@ -175,11 +179,10 @@ export async function leaveWedding(uid: string, weddingId: string) {
   await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });
 }
 
-export async function deleteAccount(uid: string, weddingId: string | null) {
-  if (weddingId) {
-    await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
-    await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });
-  } else {
-    await deleteDoc(doc(db, 'users', uid));
-  }
+// Full account deletion — removes membership from every wedding the account
+// belongs to, plus the global profile doc. Used when a user has no other
+// wedding to fall back to; otherwise leaveWedding above is the right call.
+export async function deleteAccountFully(uid: string, weddingIds: string[]) {
+  await Promise.all(weddingIds.map((weddingId) => deleteDoc(doc(db, 'weddings', weddingId, 'members', uid))));
+  await deleteDoc(doc(db, 'users', uid));
 }

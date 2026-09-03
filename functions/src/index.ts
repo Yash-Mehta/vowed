@@ -8,6 +8,7 @@ import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebas
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import * as nodemailer from 'nodemailer';
+import twilio from 'twilio';
 
 initializeApp();
 
@@ -15,6 +16,10 @@ const db = getFirestore();
 
 const gmailUser = defineSecret('GMAIL_USER');
 const gmailPass = defineSecret('GMAIL_APP_PASS');
+
+const twilioAccountSid = defineSecret('TWILIO_ACCOUNT_SID');
+const twilioAuthToken = defineSecret('TWILIO_AUTH_TOKEN');
+const twilioVerifyServiceSid = defineSecret('TWILIO_VERIFY_SERVICE_SID');
 
 // ── Email template ────────────────────────────────────────────────────────────
 
@@ -97,6 +102,121 @@ export const sendResetEmail = onCall(
     });
 
     return { success: true };
+  }
+);
+
+// ── Phone auth via Twilio Verify ────────────────────────────────────────────────
+
+const E164_FORMAT = /^\+[1-9]\d{6,14}$/;
+const OTP_CODE_FORMAT = /^\d{4,10}$/;
+
+// Separate keyspace from enforceInviteRateLimit's otpRateLimits-equivalent —
+// OTP sends cost real money per attempt (Twilio Verify billing), so this is
+// rate-limited on both the sender's IP (stop one client from targeting many
+// numbers) and the target phone number (stop one number from being bombed).
+async function enforceOtpRateLimit(key: string, maxAttempts: number, windowMs: number): Promise<void> {
+  const window = Math.floor(Date.now() / windowMs);
+  const safeKey = key.replace(/[^a-zA-Z0-9.:+_-]/g, '_').slice(0, 200) || 'unknown';
+  const ref = db.doc(`otpRateLimits/${safeKey}_${window}`);
+
+  const snap = await ref.get();
+  const count = (snap.data()?.count as number | undefined) ?? 0;
+  if (count >= maxAttempts) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
+  }
+
+  await ref.set(
+    { count: FieldValue.increment(1), expiresAt: Timestamp.fromMillis((window + 1) * windowMs) },
+    { merge: true }
+  );
+}
+
+function twilioClient() {
+  return twilio(twilioAccountSid.value(), twilioAuthToken.value());
+}
+
+export const sendPhoneOtp = onCall(
+  { secrets: [twilioAccountSid, twilioAuthToken, twilioVerifyServiceSid] },
+  async (request) => {
+    const phoneNumber = (request.data?.phoneNumber as string | undefined)?.trim();
+    if (!phoneNumber || !E164_FORMAT.test(phoneNumber)) {
+      throw new HttpsError('invalid-argument', 'A valid phone number is required.');
+    }
+
+    const ip = request.rawRequest.ip ?? 'unknown';
+    await enforceOtpRateLimit(`send_ip_${ip}`, 10, 15 * 60 * 1000);
+    await enforceOtpRateLimit(`send_phone_${phoneNumber}`, 5, 15 * 60 * 1000);
+
+    try {
+      await twilioClient()
+        .verify.v2.services(twilioVerifyServiceSid.value())
+        .verifications.create({ to: phoneNumber, channel: 'sms' });
+    } catch (e: any) {
+      console.error('sendPhoneOtp: Twilio verifications.create failed', { code: e?.code, status: e?.status, message: e?.message });
+      throw new HttpsError('internal', 'Could not send verification code.');
+    }
+
+    return { success: true };
+  }
+);
+
+export const verifyPhoneOtp = onCall(
+  { secrets: [twilioAccountSid, twilioAuthToken, twilioVerifyServiceSid] },
+  async (request) => {
+    const phoneNumber = (request.data?.phoneNumber as string | undefined)?.trim();
+    const code = (request.data?.code as string | undefined)?.trim();
+    if (!phoneNumber || !E164_FORMAT.test(phoneNumber)) {
+      throw new HttpsError('invalid-argument', 'A valid phone number is required.');
+    }
+    if (!code || !OTP_CODE_FORMAT.test(code)) {
+      throw new HttpsError('invalid-argument', 'A valid verification code is required.');
+    }
+
+    const ip = request.rawRequest.ip ?? 'unknown';
+    await enforceOtpRateLimit(`verify_ip_${ip}`, 10, 15 * 60 * 1000);
+    await enforceOtpRateLimit(`verify_phone_${phoneNumber}`, 8, 15 * 60 * 1000);
+
+    let check;
+    try {
+      check = await twilioClient()
+        .verify.v2.services(twilioVerifyServiceSid.value())
+        .verificationChecks.create({ to: phoneNumber, code });
+    } catch (e: any) {
+      console.error('verifyPhoneOtp: Twilio verificationChecks.create failed', { code: e?.code, status: e?.status, message: e?.message });
+      // Twilio throws (rather than returning a rejected check) once a
+      // verification is expired, already approved, or otherwise no longer
+      // live — e.g. a resend invalidated the code being submitted, or the
+      // same code was checked twice (SMS autofill + manual submit racing).
+      // That's a "get a new code" situation for the user, not a generic
+      // failure, so surface it the same way as a wrong code rather than a
+      // scary internal error.
+      if (e?.status === 404) {
+        throw new HttpsError('permission-denied', 'Invalid or expired code.');
+      }
+      throw new HttpsError('internal', 'Could not verify code.');
+    }
+
+    if (check.status !== 'approved') {
+      throw new HttpsError('permission-denied', 'Invalid or expired code.');
+    }
+
+    // Reuse the existing account if this number was backfilled or previously
+    // registered, so the person lands back on their own data — otherwise
+    // this is a brand-new phone-only signup.
+    let uid: string;
+    try {
+      const existing = await getAuth().getUserByPhoneNumber(phoneNumber);
+      uid = existing.uid;
+    } catch (e: any) {
+      if (e.code !== 'auth/user-not-found') {
+        throw new HttpsError('internal', 'Could not look up account.');
+      }
+      const created = await getAuth().createUser({ phoneNumber });
+      uid = created.uid;
+    }
+
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
   }
 );
 

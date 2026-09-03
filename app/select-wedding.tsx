@@ -11,28 +11,15 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
 import { useAuthStore } from '../store/authStore';
 import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../lib/firestore';
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
-import { Sprig } from '../components/Sprig';
 import { theme } from '../constants/theme';
 
 export default function SelectWeddingScreen() {
   const router = useRouter();
   const { userWeddingIds, switchWedding, setUserWeddingIds } = useAuthStore();
-
-  async function handleSignOut() {
-    Alert.alert('Sign out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: () => signOut(auth),
-      },
-    ]);
-  }
   const [previews, setPreviews] = useState<WeddingPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
@@ -113,10 +100,6 @@ export default function SelectWeddingScreen() {
           hitSlop={12}>
           <Ionicons name="settings-outline" size={22} color={theme.colors.creamOnWine} />
         </TouchableOpacity>
-        <View style={styles.sprigRow}>
-          <Sprig size={34} color={theme.colors.goldSoft} flip />
-          <Sprig size={34} color={theme.colors.goldSoft} />
-        </View>
         <Text style={styles.appName}>Vowed</Text>
         <View style={styles.headerRule} />
         <Text style={styles.subtitle}>choose your wedding party</Text>
@@ -133,9 +116,6 @@ export default function SelectWeddingScreen() {
             onPress={() => router.push('/(auth)/invite')}
             activeOpacity={0.85}>
             <Text style={styles.addBtnText}>Add a wedding party</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
-            <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -164,17 +144,12 @@ export default function SelectWeddingScreen() {
             </TouchableOpacity>
           )}
           ListFooterComponent={
-            <View>
-              <TouchableOpacity
-                style={styles.addRow}
-                onPress={() => router.push('/(auth)/invite')}
-                activeOpacity={0.7}>
-                <Text style={styles.addRowText}>+ Add a wedding party</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
-                <Text style={styles.signOutText}>Sign out</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.addRow}
+              onPress={() => router.push('/(auth)/invite')}
+              activeOpacity={0.7}>
+              <Text style={styles.addRowText}>+ Add a wedding party</Text>
+            </TouchableOpacity>
           }
         />
       )}
@@ -201,7 +176,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sprigRow: { flexDirection: 'row', gap: 12, marginBottom: 4, opacity: 0.9 },
   appName: {
     fontSize: 40,
     fontFamily: theme.fonts.serif,
@@ -261,8 +235,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sans,
     fontWeight: '500',
   },
-  signOutRow: { paddingVertical: 12, alignItems: 'center' },
-  signOutText: { fontSize: 13, color: theme.colors.ink4, fontFamily: theme.fonts.sans },
   empty: {
     flex: 1,
     justifyContent: 'center',

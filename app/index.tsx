@@ -21,7 +21,7 @@ export default function IndexScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() => router.push('/(auth)/login')}
+          onPress={() => router.push('/(auth)/phone')}
           activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>Sign in</Text>
         </TouchableOpacity>

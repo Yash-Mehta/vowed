@@ -70,26 +70,36 @@ export default function RootLayout() {
       setLoading(true);
       setFirebaseUser(user);
       if (user) {
-        if (!user.emailVerified) {
+        // Load user index to know which weddings they belong to.
+        // We don't auto-select a wedding — user must choose from the party selection screen.
+        // try/catch matters here: this whole callback is unawaited by the
+        // SDK, so an unhandled rejection from getUserIndex would silently
+        // leave isLoading stuck at true forever — the redirect effect below
+        // bails out early while isLoading is true, so the app would be
+        // stuck on the auth screen even though sign-in already succeeded.
+        try {
+          const idx = await getUserIndex(user.uid);
+          const ids = idx?.weddingIds ?? [];
+          setUserWeddingIds(ids);
+          setWeddingId(null);
+          setUserDoc(null);
+          // Empty displayName means no global profile yet (brand-new user) —
+          // checked as falsy by profile-setup.tsx/create-account.tsx to decide
+          // whether to show the name/photo form.
+          setGlobalProfile({
+            displayName: idx?.displayName ?? '',
+            photoURL: idx?.photoURL ?? null,
+            phoneNumber: idx?.phoneNumber ?? user.phoneNumber ?? null,
+          });
+        } catch (e) {
+          console.warn('Failed to load user index after sign-in', e);
           setUserWeddingIds([]);
           setWeddingId(null);
           setUserDoc(null);
-          setGlobalProfile(null);
+          setGlobalProfile({ displayName: '', photoURL: null, phoneNumber: user.phoneNumber ?? null });
+        } finally {
           setLoading(false);
-          return;
         }
-        // Load user index to know which weddings they belong to.
-        // We don't auto-select a wedding — user must choose from the party selection screen.
-        const idx = await getUserIndex(user.uid);
-        const ids = idx?.weddingIds ?? [];
-        setUserWeddingIds(ids);
-        setWeddingId(null);
-        setUserDoc(null);
-        // Empty displayName means no global profile yet (brand-new user) —
-        // checked as falsy by profile-setup.tsx/create-account.tsx to decide
-        // whether to show the name/photo form.
-        setGlobalProfile({ displayName: idx?.displayName ?? '', photoURL: idx?.photoURL ?? null });
-        setLoading(false);
       } else {
         setUserWeddingIds([]);
         setUserDoc(null);
@@ -108,14 +118,9 @@ export default function RootLayout() {
     const inSelectWedding = segments[0] === 'select-wedding';
     const inSettings = segments[0] === 'settings';
 
-    const emailVerified = firebaseUser?.emailVerified ?? true;
-    const onVerifyScreen = segments[1] === 'verify-email';
-
     if (!firebaseUser && !inAuth && !inOnboarding) {
       router.replace('/');
-    } else if (firebaseUser && !emailVerified && !onVerifyScreen && !inOnboarding) {
-      router.replace('/(auth)/verify-email');
-    } else if (firebaseUser && emailVerified) {
+    } else if (firebaseUser) {
       if (weddingId) {
         // Party selected — route to tabs
         if (inAuth || inSelectWedding) {
@@ -128,20 +133,20 @@ export default function RootLayout() {
         } else if (
           inAuth &&
           segments[1] !== 'profile-setup' &&
-          segments[1] !== 'invite' &&
-          segments[1] !== 'register' &&
-          segments[1] !== 'verify-email'
+          segments[1] !== 'invite'
         ) {
           router.replace('/(auth)/profile-setup');
         }
       } else if (userWeddingIds.length > 0) {
         // Has weddings but no party selected — go to party selection.
-        // Allow invite/profile-setup/register/verify-email so mid-join flow isn't interrupted.
+        // Allow invite/profile-setup so mid-join flow isn't interrupted.
+        // Deliberately NOT excluding 'phone' here: firebaseUser only ever
+        // becomes truthy on that screen the instant sign-in completes, so
+        // excluding it would permanently block this redirect from ever
+        // firing while the user sits on the now-irrelevant OTP screen.
         const onMidJoinScreen =
           segments[1] === 'invite' ||
-          segments[1] === 'profile-setup' ||
-          segments[1] === 'register' ||
-          segments[1] === 'verify-email';
+          segments[1] === 'profile-setup';
         if (!inSelectWedding && !inSettings && !inOnboarding && !onMidJoinScreen) {
           router.replace('/select-wedding');
         }
@@ -149,9 +154,7 @@ export default function RootLayout() {
         // No weddings yet — needs to join via invite.
         const onMidJoinScreen =
           segments[1] === 'invite' ||
-          segments[1] === 'profile-setup' ||
-          segments[1] === 'register' ||
-          segments[1] === 'verify-email';
+          segments[1] === 'profile-setup';
         if (!inOnboarding && !onMidJoinScreen) {
           router.replace('/(auth)/invite');
         }

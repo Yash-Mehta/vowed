@@ -15,7 +15,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, getMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
+import { createMember, getMember, updateMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
@@ -101,9 +101,18 @@ export default function ProfileSetupScreen() {
         // Permission denied — not yet a member, proceed with join
       }
       if (existing) {
-        // Already a member — never overwrite, especially don't demote a host to guest
+        // Already a member — never overwrite, except a host-code entry DOES
+        // elevate an existing guest (same trust signal as a first-time
+        // join granting host). See the matching logic in invite.tsx for
+        // the signed-in path — this is the not-yet-signed-in path, where
+        // this branch is reached only after phone verification instead.
+        let memberDoc = existing;
+        if (role === 'host' && existing.role !== 'host') {
+          await updateMember(pendingWeddingId, uid, { role: 'host' });
+          memberDoc = { ...existing, role: 'host' };
+        }
         await addWeddingToIndex(uid, pendingWeddingId);
-        setUserDoc(existing);
+        setUserDoc(memberDoc);
         setUserWeddingIds(userWeddingIds.includes(pendingWeddingId) ? userWeddingIds : [...userWeddingIds, pendingWeddingId]);
         setPendingWeddingId(null);
         router.replace('/select-wedding');
@@ -121,7 +130,7 @@ export default function ProfileSetupScreen() {
         // Seed the global profile so future weddings this account joins
         // skip this form entirely.
         await setUserProfile(uid, { displayName: name, photoURL });
-        setGlobalProfile({ displayName: name, photoURL });
+        setGlobalProfile({ displayName: name, photoURL, phoneNumber: globalProfile?.phoneNumber ?? null });
       }
 
       const memberData = {

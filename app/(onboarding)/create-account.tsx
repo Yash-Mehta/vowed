@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,17 +12,22 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
+import { getUserIndex } from '../../lib/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
-import { getUserIndex } from '../../lib/firestore';
+import { sendPhoneOtp, verifyPhoneOtp, buildE164, OtpRateLimitedError, OtpInvalidCodeError } from '../../lib/phoneAuth';
+import { CountryCodePicker } from '../../components/CountryCodePicker';
+import { OtpCodeInput } from '../../components/OtpCodeInput';
+import { DEFAULT_COUNTRY, Country } from '../../constants/countries';
 import { theme } from '../../constants/theme';
+
+const RESEND_COOLDOWN_START_S = 30;
 
 export default function CreateAccountScreen() {
   const router = useRouter();
-  const { setPendingRole, globalProfile, setGlobalProfile } = useAuthStore();
+  const { setPendingRole, globalProfile } = useAuthStore();
   const { update } = useOnboardingStore();
   const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
@@ -34,9 +39,20 @@ export default function CreateAccountScreen() {
   const [ownerName, setOwnerName] = useState(
     alreadySignedIn ? (globalProfile?.displayName ?? '') : ''
   );
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [step, setStep] = useState<'details' | 'code'>('details');
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [e164Phone, setE164Phone] = useState('');
+  const [codeInput, setCodeInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const nextCooldownRef = useRef(RESEND_COOLDOWN_START_S);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   // Already signed in — just collect their name and proceed
   function handleContinueSignedIn() {
@@ -49,70 +65,89 @@ export default function CreateAccountScreen() {
     router.push('/(onboarding)/names');
   }
 
-  // Not signed in — create or sign in to account first
-  async function handleContinueNewAccount() {
-    if (!ownerName.trim() || !email.trim() || !password) return;
-    if (password.length < 6) {
-      Alert.alert('Password too short', 'Minimum 6 characters.');
+  // Not signed in — send a code to their phone
+  async function handleSendCode() {
+    if (!ownerName.trim()) {
+      Alert.alert('Required', 'Please enter your name.');
+      return;
+    }
+    const normalized = buildE164(country.dialCode, phoneInput);
+    if (!normalized) {
+      Alert.alert('Invalid number', 'Please enter a valid phone number.');
       return;
     }
     setLoading(true);
     try {
-      setPendingRole('host');
-      update({ ownerName: ownerName.trim() });
-      let isNewUser = false;
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await sendEmailVerification(cred.user);
-        isNewUser = true;
-      } catch (e: any) {
-        if (e.code === 'auth/email-already-in-use') {
-          try {
-            const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-            // We don't know until this resolves whether this account
-            // already has a global profile — the store's globalProfile
-            // isn't populated yet (that happens async via _layout.tsx's
-            // own auth-state listener), so fetch it directly here and use
-            // their real name instead of whatever they just typed.
-            const idx = await getUserIndex(cred.user.uid);
-            if (idx?.displayName) {
-              update({ ownerName: idx.displayName });
-              setGlobalProfile({ displayName: idx.displayName, photoURL: idx.photoURL ?? null });
-            }
-            Alert.alert('Welcome back', 'You already had an account with this email — we signed you in instead of creating a new one.');
-          } catch (signInError: any) {
-            const isWrongPassword =
-              signInError.code === 'auth/wrong-password' ||
-              signInError.code === 'auth/invalid-credential';
-            Alert.alert(
-              'Account already exists',
-              isWrongPassword
-                ? 'An account with this email exists. Please sign in with your correct password, or use "Forgot password".'
-                : 'An account with this email exists. Please sign in instead.',
-              [
-                { text: 'Sign in', onPress: () => router.replace('/(auth)/login') },
-                { text: 'Cancel', style: 'cancel' },
-              ]
-            );
-            return;
-          }
-        } else {
-          throw e;
-        }
-      }
-      if (isNewUser) {
-        router.replace('/(auth)/verify-email');
+      await sendPhoneOtp(normalized);
+      setE164Phone(normalized);
+      setStep('code');
+      setCooldown(RESEND_COOLDOWN_START_S);
+      nextCooldownRef.current = RESEND_COOLDOWN_START_S * 2;
+    } catch (e: unknown) {
+      if (e instanceof OtpRateLimitedError) {
+        Alert.alert('Too many attempts', e.message);
       } else {
-        // Existing account, signed in via the fallback above — still needs
-        // to continue into host onboarding. Unlike the guest invite flow,
-        // there's no pendingWeddingId here to steer _layout.tsx's generic
-        // guard, so an existing multi-wedding user would otherwise get
-        // routed to /select-wedding instead of where they were headed.
+        Alert.alert('Error', 'Could not send verification code. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendCode() {
+    if (cooldown > 0) return;
+    setLoading(true);
+    try {
+      await sendPhoneOtp(e164Phone);
+      setCooldown(nextCooldownRef.current);
+      nextCooldownRef.current *= 2;
+    } catch (e: unknown) {
+      if (e instanceof OtpRateLimitedError) {
+        Alert.alert('Too many attempts', e.message);
+      } else {
+        Alert.alert('Error', 'Could not resend code. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Verifies the code and signs in — verifyPhoneOtp finds the existing
+  // account for this number if there is one, or creates a new one. A
+  // genuinely brand-new phone number should proceed into wedding-creation
+  // onboarding, but a number that already has an account with wedding(s)
+  // on it should NOT be forced through that form again — that account
+  // already exists; the person just needs to land where they're already a
+  // member. _layout.tsx's own redirect guard has no pendingWeddingId to
+  // steer it here (unlike the guest invite flow), so in the new-user case
+  // we still navigate explicitly rather than relying on it.
+  async function handleVerifyCode() {
+    if (!codeInput.trim() || loading) return;
+    setLoading(true);
+    try {
+      const { uid } = await verifyPhoneOtp(e164Phone, codeInput.trim());
+      const idx = await getUserIndex(uid);
+      if (idx?.weddingIds && idx.weddingIds.length > 0) {
+        // Existing account, already has wedding(s) — let _layout.tsx's own
+        // auth-state listener route them to /select-wedding once it catches
+        // up, same as any other returning sign-in.
+      } else {
+        setPendingRole('host');
+        update({ ownerName: ownerName.trim() });
         router.replace('/(onboarding)/names');
       }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
+      // Stay in the loading state on success — see phone.tsx's handleVerify
+      // for why resetting it here can let a stale button tap burn an
+      // already-consumed code during the navigation transition.
+      setTimeout(() => setLoading(false), 8000);
+    } catch (e: unknown) {
+      if (e instanceof OtpInvalidCodeError) {
+        Alert.alert('Incorrect code', e.message);
+      } else if (e instanceof OtpRateLimitedError) {
+        Alert.alert('Too many attempts', e.message);
+      } else {
+        Alert.alert('Error', 'Could not verify code. Please try again.');
+      }
       setLoading(false);
     }
   }
@@ -188,61 +223,78 @@ export default function CreateAccountScreen() {
         <Text style={styles.eyebrow}>Step 1 of 4</Text>
         <Text style={styles.title}>Create your account</Text>
         <Text style={styles.sub}>
-          You'll be the host. We'll set up your wedding details next.
+          {step === 'details'
+            ? "You'll be the host. We'll set up your wedding details next."
+            : `We sent a code to ${e164Phone}`}
         </Text>
 
-        <Text style={styles.label}>YOUR NAME</Text>
-        <TextInput
-          style={styles.input}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder="e.g. Alex Chen"
-          placeholderTextColor={theme.colors.ink4}
-          autoCapitalize="words"
-          onFocus={scrollToInput}
-        />
+        {step === 'details' ? (
+          <>
+            <Text style={styles.label}>YOUR NAME</Text>
+            <TextInput
+              style={styles.input}
+              value={ownerName}
+              onChangeText={setOwnerName}
+              placeholder="e.g. Alex Chen"
+              placeholderTextColor={theme.colors.ink4}
+              autoCapitalize="words"
+              onFocus={scrollToInput}
+            />
 
-        <Text style={styles.label}>EMAIL</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="your@email.com"
-          placeholderTextColor={theme.colors.ink4}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          onFocus={scrollToInput}
-        />
+            <Text style={styles.label}>PHONE NUMBER</Text>
+            <View style={styles.phoneRow}>
+              <CountryCodePicker value={country} onChange={setCountry} />
+              <TextInput
+                style={[styles.input, styles.phoneInput]}
+                value={phoneInput}
+                onChangeText={setPhoneInput}
+                placeholder="(555) 123-4567"
+                placeholderTextColor={theme.colors.ink4}
+                keyboardType="phone-pad"
+                onFocus={scrollToInput}
+              />
+            </View>
 
-        <Text style={styles.label}>PASSWORD</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Min 6 characters"
-          placeholderTextColor={theme.colors.ink4}
-          secureTextEntry
-          onFocus={scrollToInput}
-        />
+            <TouchableOpacity
+              style={[styles.btn, loading && styles.btnDisabled]}
+              onPress={handleSendCode}
+              disabled={loading}
+              activeOpacity={0.85}>
+              {loading
+                ? <ActivityIndicator color={theme.colors.bg} />
+                : <Text style={styles.btnText}>Continue</Text>}
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.btn, loading && styles.btnDisabled]}
-          onPress={handleContinueNewAccount}
-          disabled={loading}
-          activeOpacity={0.85}>
-          {loading
-            ? <ActivityIndicator color={theme.colors.bg} />
-            : <Text style={styles.btnText}>Continue</Text>}
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>VERIFICATION CODE</Text>
+            <OtpCodeInput value={codeInput} onChangeText={setCodeInput} autoFocus />
 
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, loading && styles.btnDisabled]}
+              onPress={handleVerifyCode}
+              disabled={loading}
+              activeOpacity={0.85}>
+              {loading
+                ? <ActivityIndicator color={theme.colors.bg} />
+                : <Text style={styles.btnText}>Verify</Text>}
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.back} onPress={() => router.push('/(auth)/login')}>
-          <Text style={[styles.backText, { color: theme.colors.accent }]}>Already have an account? Sign in</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.back} onPress={handleResendCode} disabled={cooldown > 0 || loading}>
+              <Text style={[styles.backText, cooldown > 0 && styles.backTextDisabled]}>
+                {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.back} onPress={() => setStep('details')}>
+              <Text style={styles.backText}>Use a different number</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -274,6 +326,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   inputReadOnly: { backgroundColor: theme.colors.surface2, color: theme.colors.ink3 },
+  phoneRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  phoneInput: { flex: 1 },
   btn: {
     backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill,
     padding: 16, alignItems: 'center', marginTop: 28,
@@ -282,4 +336,5 @@ const styles = StyleSheet.create({
   btnText: { color: theme.colors.bg, fontSize: 16, fontWeight: '600', fontFamily: theme.fonts.sans },
   back: { padding: 16, alignItems: 'center', marginTop: 4 },
   backText: { color: theme.colors.ink3, fontSize: 14, fontFamily: theme.fonts.sans },
+  backTextDisabled: { color: theme.colors.ink4 },
 });
