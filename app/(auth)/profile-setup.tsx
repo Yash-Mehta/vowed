@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -15,7 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, getMember, updateMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
+import { createMember, getMember, updateMember, addWeddingToIndex, setUserProfile, UserDoc } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
@@ -29,6 +30,7 @@ export default function ProfileSetupScreen() {
     setPendingWeddingId,
     setUserWeddingIds,
     userWeddingIds,
+    switchWedding,
   } = useAuthStore();
   // A non-empty displayName on the global profile means this account has
   // already set up a profile (on this wedding or another) — skip asking
@@ -40,6 +42,81 @@ export default function ProfileSetupScreen() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [isSingle, setIsSingle] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Gates the form behind the mount-time guard below — the form must never
+  // render until we know this user actually needs to fill it in.
+  const [checking, setChecking] = useState(true);
+
+  // Applies to an account that already has a member doc for this wedding.
+  // Never demotes; a host code still elevates an existing guest, matching
+  // invite.tsx's signed-in path (this is the signed-out equivalent).
+  async function settleExistingMember(uid: string, weddingId: string, existing: UserDoc) {
+    let memberDoc = existing;
+    let elevated = false;
+    if (role === 'host' && existing.role !== 'host') {
+      await updateMember(weddingId, uid, { role: 'host' });
+      memberDoc = { ...existing, role: 'host' };
+      elevated = true;
+    }
+    await addWeddingToIndex(uid, weddingId);
+    setUserDoc(memberDoc);
+    setUserWeddingIds(userWeddingIds.includes(weddingId) ? userWeddingIds : [...userWeddingIds, weddingId]);
+    setPendingWeddingId(null);
+    Alert.alert(
+      elevated ? 'Host access granted' : 'Already joined',
+      elevated
+        ? "You've been given host access to this wedding."
+        : "You're already part of this wedding."
+    );
+    router.replace('/select-wedding');
+  }
+
+  // Mount-time guard. This check used to live only inside handleComplete(),
+  // which meant an existing member was shown the join form, forced to
+  // invent a required "how do you know the couple" answer, and only then
+  // silently bounced — with the answer discarded. Everything that makes
+  // this screen unusable is now resolved before it renders.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const uid = auth.currentUser?.uid;
+      // Signed out: handleComplete would hit `if (!uid) return` and no-op
+      // forever, leaving an inert button with no feedback.
+      if (!uid) {
+        router.replace('/(auth)/phone');
+        return;
+      }
+      // No wedding to join — the root layout deliberately does not redirect
+      // away from this screen, so without this it becomes a dead end that
+      // only reveals the problem after the form is submitted.
+      if (!pendingWeddingId) {
+        router.replace(userWeddingIds.length > 0 ? '/select-wedding' : '/(auth)/invite');
+        return;
+      }
+      let existing: UserDoc | null = null;
+      try {
+        existing = await getMember(pendingWeddingId, uid);
+      } catch (e: any) {
+        // permission-denied is the expected "not a member yet" signal —
+        // firestore.rules gates member reads on isMember. Any other error
+        // (offline, unavailable) must NOT be read as "not a member": that
+        // would fall through to createMember, which is a non-merging
+        // setDoc, overwriting a real member doc and demoting a host.
+        if (e?.code !== 'permission-denied') {
+          if (cancelled) return;
+          Alert.alert('Connection problem', 'Could not load this wedding. Please check your connection and try again.');
+          router.replace(userWeddingIds.length > 0 ? '/select-wedding' : '/(auth)/invite');
+          return;
+        }
+      }
+      if (cancelled) return;
+      if (existing) {
+        await settleExistingMember(uid, pendingWeddingId, existing);
+        return;
+      }
+      setChecking(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function pickAvatar() {
     Alert.alert('Add photo', undefined, [
@@ -94,28 +171,23 @@ export default function ProfileSetupScreen() {
     if (!uid) return;
     setLoading(true);
     try {
-      let existing = null;
+      // Re-check on submit as well as on mount — the mount guard handles
+      // the common case, this closes the window where membership changed
+      // (or another device joined) while the form was open.
+      let existing: UserDoc | null = null;
       try {
         existing = await getMember(pendingWeddingId, uid);
-      } catch {
-        // Permission denied — not yet a member, proceed with join
+      } catch (e: any) {
+        // Only permission-denied means "not a member" — see the mount
+        // guard above for why anything else must abort rather than fall
+        // through to the non-merging createMember below.
+        if (e?.code !== 'permission-denied') {
+          Alert.alert('Connection problem', 'Could not save right now. Please check your connection and try again.');
+          return;
+        }
       }
       if (existing) {
-        // Already a member — never overwrite, except a host-code entry DOES
-        // elevate an existing guest (same trust signal as a first-time
-        // join granting host). See the matching logic in invite.tsx for
-        // the signed-in path — this is the not-yet-signed-in path, where
-        // this branch is reached only after phone verification instead.
-        let memberDoc = existing;
-        if (role === 'host' && existing.role !== 'host') {
-          await updateMember(pendingWeddingId, uid, { role: 'host' });
-          memberDoc = { ...existing, role: 'host' };
-        }
-        await addWeddingToIndex(uid, pendingWeddingId);
-        setUserDoc(memberDoc);
-        setUserWeddingIds(userWeddingIds.includes(pendingWeddingId) ? userWeddingIds : [...userWeddingIds, pendingWeddingId]);
-        setPendingWeddingId(null);
-        router.replace('/select-wedding');
+        await settleExistingMember(uid, pendingWeddingId, existing);
         return;
       }
 
@@ -142,15 +214,30 @@ export default function ProfileSetupScreen() {
       };
       await createMember(pendingWeddingId, uid, memberData);
       await addWeddingToIndex(uid, pendingWeddingId);
-      setUserDoc({ ...memberData, fcmToken: null, createdAt: null });
-      setUserWeddingIds([...userWeddingIds, pendingWeddingId]);
+      setUserWeddingIds(
+        userWeddingIds.includes(pendingWeddingId) ? userWeddingIds : [...userWeddingIds, pendingWeddingId]
+      );
       setPendingWeddingId(null);
-      router.replace('/select-wedding');
+      // Drop them straight into the wedding they just joined, matching the
+      // host path in confirm.tsx — landing on a one-card party picker that
+      // has to be tapped again is a pointless extra step.
+      switchWedding(pendingWeddingId, { ...memberData, fcmToken: null, createdAt: null });
+      router.replace('/(tabs)/feed');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  // Never show the join form until the guard has confirmed this user is
+  // actually a new member of this wedding.
+  if (checking) {
+    return (
+      <View style={styles.checking}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
   }
 
   return (
@@ -226,6 +313,7 @@ export default function ProfileSetupScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 32, paddingTop: 80 },
+  checking: { flex: 1, backgroundColor: theme.colors.bg, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: '700', marginBottom: 32, color: theme.colors.ink, fontFamily: theme.fonts.serif },
   avatarContainer: { alignSelf: 'center', marginBottom: 24, alignItems: 'center' },
   avatar: { width: 100, height: 100, borderRadius: 50 },

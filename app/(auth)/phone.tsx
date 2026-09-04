@@ -23,7 +23,8 @@ const RESEND_COOLDOWN_START_S = 30;
 
 export default function PhoneAuthScreen() {
   const params = useLocalSearchParams<{ code: string; role: string; weddingId: string }>();
-  const role: 'guest' | 'host' = (Array.isArray(params.role) ? params.role[0] : params.role) === 'host' ? 'host' : 'guest';
+  const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;
+  const role: 'guest' | 'host' = rawRole === 'host' ? 'host' : 'guest';
   const weddingId = Array.isArray(params.weddingId) ? params.weddingId[0] : params.weddingId;
 
   const { setPendingRole, setPendingWeddingId } = useAuthStore();
@@ -89,8 +90,13 @@ export default function PhoneAuthScreen() {
     if (!codeInput.trim() || loading) return;
     setLoading(true);
     try {
-      // Ensure store has the pending values (in case they navigated back)
-      setPendingRole(role);
+      // Ensure store has the pending values (in case they navigated back).
+      // Both writes are guarded on the param actually being supplied: this
+      // screen is also reached from invite.tsx's plain "Sign in" link, which
+      // passes no params. Writing an unguarded default there would clobber a
+      // host code the user had just validated, silently joining them to that
+      // wedding as a guest.
+      if (rawRole) setPendingRole(role);
       if (weddingId) setPendingWeddingId(weddingId);
       await verifyPhoneOtp(e164Phone, codeInput.trim());
       // Success — stay in the loading state rather than resetting it.

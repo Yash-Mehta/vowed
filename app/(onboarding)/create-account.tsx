@@ -112,30 +112,36 @@ export default function CreateAccountScreen() {
     }
   }
 
-  // Verifies the code and signs in — verifyPhoneOtp finds the existing
-  // account for this number if there is one, or creates a new one. A
-  // genuinely brand-new phone number should proceed into wedding-creation
-  // onboarding, but a number that already has an account with wedding(s)
-  // on it should NOT be forced through that form again — that account
-  // already exists; the person just needs to land where they're already a
-  // member. _layout.tsx's own redirect guard has no pendingWeddingId to
-  // steer it here (unlike the guest invite flow), so in the new-user case
-  // we still navigate explicitly rather than relying on it.
+  // Verifies the code and signs in, then always continues into the
+  // wedding-creation wizard.
+  //
+  // This deliberately does NOT branch on whether the account already has
+  // weddings. Reaching this screen means the user tapped "Planning a
+  // wedding? Create yours" and typed their name — already having wedding Y
+  // is not a reason to refuse creating wedding Z. The signed-in path
+  // (handleContinueSignedIn) already sends multi-wedding users straight
+  // into the wizard; this is the signed-out equivalent and must match.
+  //
+  // The previous version skipped the wizard for anyone with weddings and
+  // relied on _layout.tsx to redirect instead — but every branch of that
+  // guard excludes `inOnboarding`, so no redirect ever fired and the user
+  // was stranded on the OTP screen with no back affordance.
   async function handleVerifyCode() {
     if (!codeInput.trim() || loading) return;
     setLoading(true);
     try {
       const { uid } = await verifyPhoneOtp(e164Phone, codeInput.trim());
-      const idx = await getUserIndex(uid);
-      if (idx?.weddingIds && idx.weddingIds.length > 0) {
-        // Existing account, already has wedding(s) — let _layout.tsx's own
-        // auth-state listener route them to /select-wedding once it catches
-        // up, same as any other returning sign-in.
-      } else {
-        setPendingRole('host');
-        update({ ownerName: ownerName.trim() });
-        router.replace('/(onboarding)/names');
-      }
+      setPendingRole('host');
+      // displayName is account-level and shared across every wedding, so an
+      // existing account's name wins over whatever was typed into this
+      // form — otherwise creating a wedding would silently rename the
+      // person everywhere they're already a member. Reconcile the draft to
+      // match, so the rest of the wizard (and confirm.tsx, which reads the
+      // global profile) shows one consistent name instead of quietly
+      // discarding the typed one at the last step.
+      const idx = await getUserIndex(uid).catch(() => null);
+      update({ ownerName: idx?.displayName?.trim() || ownerName.trim() });
+      router.replace('/(onboarding)/names');
       // Stay in the loading state on success — see phone.tsx's handleVerify
       // for why resetting it here can let a stale button tap burn an
       // already-consumed code during the navigation transition.

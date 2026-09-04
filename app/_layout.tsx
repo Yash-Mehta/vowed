@@ -26,6 +26,8 @@ export default function RootLayout() {
     setLoading,
     setWeddingId,
     setUserWeddingIds,
+    setPendingWeddingId,
+    setPendingRole,
     isLoading,
     firebaseUser,
     weddingId,
@@ -105,6 +107,13 @@ export default function RootLayout() {
         setUserDoc(null);
         setGlobalProfile(null);
         setWeddingId(null);
+        // Also clear the pending join. Without this, a code validated by
+        // whoever used the app last survives sign-out: the next person to
+        // sign in on this device gets pushed into profile-setup for a
+        // wedding they never had a code for, and "Switch wedding party"
+        // bounces to that stale join form instead of the party picker.
+        setPendingWeddingId(null);
+        setPendingRole('guest');
         setLoading(false);
       }
     });
@@ -118,12 +127,24 @@ export default function RootLayout() {
     const inSelectWedding = segments[0] === 'select-wedding';
     const inSettings = segments[0] === 'settings';
 
-    if (!firebaseUser && !inAuth && !inOnboarding) {
+    // create-account is the only onboarding screen a signed-out user has any
+    // business on — it's where they sign up. The rest of the wizard (names,
+    // date-venue, invite-codes, confirm) needs an account, and letting them
+    // through meant filling in four screens before confirm.tsx failed with
+    // "Please sign in again" at the very end.
+    const onSignedOutOnboardingEntry = inOnboarding && segments[1] === 'create-account';
+    // Cast: expo-router's generated segment type doesn't model the bare
+    // index route, which is [] at runtime.
+    const atRoot = (segments as string[]).length === 0;
+
+    if (!firebaseUser && !inAuth && !onSignedOutOnboardingEntry) {
       router.replace('/');
     } else if (firebaseUser) {
       if (weddingId) {
-        // Party selected — route to tabs
-        if (inAuth || inSelectWedding) {
+        // Party selected — route to tabs. Includes the bare landing route,
+        // which is otherwise an unguarded gap: a signed-in user with a
+        // wedding selected would sit on the Sign in / Create account screen.
+        if (inAuth || inSelectWedding || atRoot) {
           playEntryTransition(() => router.replace('/(tabs)/feed'));
         }
       } else if (pendingWeddingId) {
@@ -139,22 +160,25 @@ export default function RootLayout() {
         }
       } else if (userWeddingIds.length > 0) {
         // Has weddings but no party selected — go to party selection.
-        // Allow invite/profile-setup so mid-join flow isn't interrupted.
-        // Deliberately NOT excluding 'phone' here: firebaseUser only ever
-        // becomes truthy on that screen the instant sign-in completes, so
-        // excluding it would permanently block this redirect from ever
-        // firing while the user sits on the now-irrelevant OTP screen.
-        const onMidJoinScreen =
-          segments[1] === 'invite' ||
-          segments[1] === 'profile-setup';
+        // Allow invite so mid-join flow isn't interrupted.
+        //
+        // Deliberately NOT excluding 'phone': firebaseUser only becomes
+        // truthy on that screen the instant sign-in completes, so excluding
+        // it would permanently block this redirect while the user sits on
+        // the now-irrelevant OTP screen.
+        //
+        // Deliberately NOT excluding 'profile-setup' either — this branch
+        // only runs when pendingWeddingId is null, and profile-setup with
+        // nothing to join is a dead end that can only report the problem
+        // after the form is submitted.
+        const onMidJoinScreen = segments[1] === 'invite';
         if (!inSelectWedding && !inSettings && !inOnboarding && !onMidJoinScreen) {
           router.replace('/select-wedding');
         }
       } else {
-        // No weddings yet — needs to join via invite.
-        const onMidJoinScreen =
-          segments[1] === 'invite' ||
-          segments[1] === 'profile-setup';
+        // No weddings yet — needs to join via invite. Same reasoning as
+        // above for why profile-setup is not excluded here.
+        const onMidJoinScreen = segments[1] === 'invite';
         if (!inOnboarding && !onMidJoinScreen) {
           router.replace('/(auth)/invite');
         }

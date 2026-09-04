@@ -159,6 +159,12 @@ export default function InviteScreen() {
                 setPreview(null);
                 setPendingResult(null);
                 previewAnim.setValue(0);
+                // Retract the armed join too, not just the local preview —
+                // otherwise editing the code leaves the store pointing at
+                // the previously validated wedding, and the root layout
+                // will still force a join to it later.
+                setPendingWeddingId(null);
+                setPendingRole('guest');
               }
             }}
             placeholder="INVITE CODE"
@@ -193,7 +199,14 @@ export default function InviteScreen() {
             <Text style={styles.signInText}>Already have an account? <Text style={styles.signInBold}>Sign in</Text></Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.createLink} onPress={() => router.push('/(onboarding)/create-account')}>
+          <TouchableOpacity style={styles.createLink} onPress={() => {
+            // Leaving to create a wedding abandons any code entered here —
+            // clear it, or the pending join survives the whole host wizard
+            // and hijacks "Switch wedding party" afterwards.
+            setPendingWeddingId(null);
+            setPendingRole('guest');
+            router.push('/(onboarding)/create-account');
+          }}>
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
           </TouchableOpacity>
 
