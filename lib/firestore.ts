@@ -174,6 +174,33 @@ export async function validateInviteCode(
   }
 }
 
+// ── Host elevation ─────────────────────────────────────────────────────────────
+
+export class HostClaimError extends Error {}
+
+// Firestore rules can't validate an invite code, so the client no longer writes
+// `role: 'host'` itself — the callable checks the code against weddingsByCode
+// with the Admin SDK and sets the role server-side.
+export async function claimHostRole(weddingId: string, code: string): Promise<void> {
+  const call = httpsCallable<{ weddingId: string; code: string }, { role: 'host' }>(
+    functions,
+    'claimHostRole',
+    { timeout: INVITE_CODE_TIMEOUT_MS }
+  );
+  try {
+    await call({ weddingId, code });
+  } catch (e: unknown) {
+    if (e instanceof FunctionsError && e.code === 'functions/resource-exhausted') {
+      throw new InviteCodeRateLimitedError(e.message);
+    }
+    throw new HostClaimError(
+      e instanceof FunctionsError && e.code === 'functions/permission-denied'
+        ? 'That host code is not valid for this wedding.'
+        : 'Could not grant host access. Please try again.'
+    );
+  }
+}
+
 export async function leaveWedding(uid: string, weddingId: string) {
   await deleteDoc(doc(db, 'weddings', weddingId, 'members', uid));
   await updateDoc(doc(db, 'users', uid), { weddingIds: arrayRemove(weddingId) });

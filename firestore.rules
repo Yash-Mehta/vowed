@@ -16,24 +16,54 @@ service cloud.firestore {
 
     function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
 
+    // The wedding's creator. This is the one client-side anchor that authorizes
+    // a 'host' write, so ownerUid must itself be immutable — see the wedding
+    // update rule, which blocks it.
+    function ownsWedding(weddingId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/weddings/$(weddingId)).data.ownerUid == request.auth.uid;
+    }
+
+    function changing(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
     // ── Invite code index ─────────────────────────────────────────────────────
-    // No client read access — codes gate private wedding data and a 4-char
+    // No client read access — codes gate private wedding data and a short
     // keyspace is brute-forceable at unlimited client read rate. Lookups go
     // through the validateInviteCode Cloud Function (Admin SDK, rate-limited).
     match /weddingsByCode/{code} {
       allow read: if false;
-      allow create: if isAuth();
-      allow update, delete: if false;
+      // Only the wedding's creator may mint codes that point at it. An
+      // unrestricted create let anyone squat an unclaimed code: joiners land in
+      // the squatter's wedding, and the real host's create later fails as a
+      // denied update. confirm.tsx writes the wedding doc before its two code
+      // docs, so this lookup resolves during onboarding.
+      allow create: if isAuth() && ownsWedding(request.resource.data.weddingId);
+      // Hosts edit couple name / venue / date after creation, and manage.tsx
+      // mirrors that onto the code's preview (shown to joiners before sign-in).
+      // Update was previously denied outright, so every such edit failed
+      // silently and previews froze at their creation-time values. Scoped to
+      // hosts of the wedding the code already points at; the code can never be
+      // repointed at a different wedding or flipped to a host code.
+      allow update: if isHost(resource.data.weddingId) && !changing(['weddingId', 'role']);
+      allow delete: if false;
     }
 
-    // ── Invite code brute-force rate limiting (Cloud Function only) ────────────
+    // ── Rate limiter state (Cloud Function only) ──────────────────────────────
     match /inviteRateLimits/{key} {
+      allow read, write: if false;
+    }
+    match /otpRateLimits/{key} {
       allow read, write: if false;
     }
 
     // ── User index (maps uid → weddingIds) ────────────────────────────────────
+    // Read was open to any signed-in user, which made the whole collection
+    // enumerable — every doc carries weddingIds, so that handed out the id of
+    // every wedding in the database. All client reads are self-reads.
     match /users/{uid} {
-      allow read: if isAuth();
+      allow read: if isOwner(uid);
       allow create, update: if isOwner(uid);
       allow delete: if isOwner(uid);
     }
@@ -41,15 +71,24 @@ service cloud.firestore {
     // ── Wedding document (config) ─────────────────────────────────────────────
     match /weddings/{weddingId} {
       allow read: if isMember(weddingId);
-      allow create: if isAuth();
-      allow update: if isHost(weddingId);
+      allow create: if isAuth() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isHost(weddingId) &&
+        !changing(['ownerUid', 'guestInviteCode', 'hostInviteCode', 'createdAt']);
       allow delete: if false;
 
       // ── Members ─────────────────────────────────────────────────────────────
       match /members/{uid} {
         allow read: if isMember(weddingId);
-        allow create: if isAuth() && isOwner(uid);
-        allow update: if isOwner(uid) || isHost(weddingId);
+        // role is server-controlled. A client may only write 'host' when it is
+        // the creator adding themselves to their own wedding; every other
+        // elevation goes through the claimHostRole callable, which validates
+        // the invite code server-side.
+        allow create: if isAuth() && isOwner(uid) &&
+          (request.resource.data.role == 'guest' || ownsWedding(weddingId));
+        // Self-edits (name, photo, howTheyKnow, isSingle, fcmToken) stay open;
+        // self-promotion does not. The isHost arm is untouched, so the admin
+        // panel's promote/demote keeps working.
+        allow update: if (isOwner(uid) && !changing(['role'])) || isHost(weddingId);
         allow delete: if isHost(weddingId) || isOwner(uid);
       }
 
@@ -57,12 +96,17 @@ service cloud.firestore {
       match /posts/{postId} {
         allow read: if isMember(weddingId);
         allow create: if isMember(weddingId);
-        allow update: if isHost(weddingId);
+        // Hosts edit captions and pin; they do not get to rewrite authorship or
+        // hand-set engagement counts (those are maintained by Cloud Functions,
+        // which run with the Admin SDK and bypass these rules).
+        allow update: if isHost(weddingId) &&
+          !changing(['authorId', 'likeCount', 'commentCount', 'createdAt']);
         allow delete: if isOwner(resource.data.authorId) || isHost(weddingId);
 
         match /comments/{commentId} {
           allow read: if isMember(weddingId);
-          allow create: if isMember(weddingId);
+          allow create: if isMember(weddingId) &&
+            request.resource.data.authorId == request.auth.uid;
           allow delete: if isOwner(resource.data.authorId) || isHost(weddingId);
         }
 

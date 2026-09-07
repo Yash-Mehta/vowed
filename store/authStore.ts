@@ -20,6 +20,9 @@ interface AuthState {
   pendingRole: UserRole;
   weddingId: string | null;
   pendingWeddingId: string | null;
+  // The invite code that produced pendingWeddingId/pendingRole. Held so the
+  // join flow can hand it to claimHostRole, which re-validates it server-side.
+  pendingCode: string | null;
   userWeddingIds: string[];
   setFirebaseUser: (user: User | null) => void;
   setUserDoc: (doc: UserDoc | null) => void;
@@ -28,6 +31,7 @@ interface AuthState {
   setPendingRole: (role: UserRole) => void;
   setWeddingId: (id: string | null) => void;
   setPendingWeddingId: (id: string | null) => void;
+  setPendingCode: (code: string | null) => void;
   setUserWeddingIds: (ids: string[]) => void;
   switchWedding: (weddingId: string, memberDoc: UserDoc) => void;
   clear: () => void;
@@ -42,6 +46,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   pendingRole: 'guest',
   weddingId: null,
   pendingWeddingId: null,
+  pendingCode: null,
   userWeddingIds: [],
   setFirebaseUser: (user) => set({ firebaseUser: user }),
   setUserDoc: (doc) => set({ userDoc: doc, role: doc?.role ?? null }),
@@ -50,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setPendingRole: (pendingRole) => set({ pendingRole }),
   setWeddingId: (weddingId) => set({ weddingId }),
   setPendingWeddingId: (pendingWeddingId) => set({ pendingWeddingId }),
+  setPendingCode: (pendingCode) => set({ pendingCode }),
   setUserWeddingIds: (userWeddingIds) => set({ userWeddingIds }),
   switchWedding: (weddingId, memberDoc) => {
     set({ weddingId, userDoc: memberDoc, role: memberDoc.role });
@@ -63,6 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       pendingRole: 'guest',
       weddingId: null,
       pendingWeddingId: null,
+      pendingCode: null,
       userWeddingIds: [],
     }),
 }));

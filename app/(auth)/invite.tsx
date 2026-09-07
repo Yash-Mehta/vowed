@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode, getMember, updateMember, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
+import { validateInviteCode, getMember, claimHostRole, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
 
@@ -25,7 +25,7 @@ export default function InviteScreen() {
   const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const [pendingResult, setPendingResult] = useState<{ weddingId: string; role: 'guest' | 'host' } | null>(null);
   const router = useRouter();
-  const { setPendingRole, setPendingWeddingId } = useAuthStore();
+  const { setPendingRole, setPendingWeddingId, setPendingCode } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const previewAnim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -66,7 +66,7 @@ export default function InviteScreen() {
           // join, so it should work the same way for an existing member.
           if (result.role === 'host' && existing.role !== 'host') {
             try {
-              await updateMember(result.weddingId, auth.currentUser.uid, { role: 'host' });
+              await claimHostRole(result.weddingId, code.trim().toUpperCase());
               setLoading(false);
               Alert.alert('Host access granted', "You've been given host access to this wedding.");
             } catch (e: any) {
@@ -86,6 +86,7 @@ export default function InviteScreen() {
     setLoading(false);
     setPendingRole(result.role);
     setPendingWeddingId(result.weddingId);
+    setPendingCode(code.trim().toUpperCase());
     setPreview(result.preview);
     setPendingResult({ weddingId: result.weddingId, role: result.role });
     Animated.timing(previewAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -165,6 +166,7 @@ export default function InviteScreen() {
                 // will still force a join to it later.
                 setPendingWeddingId(null);
                 setPendingRole('guest');
+                setPendingCode(null);
               }
             }}
             placeholder="INVITE CODE"
@@ -205,6 +207,7 @@ export default function InviteScreen() {
             // and hijacks "Switch wedding party" afterwards.
             setPendingWeddingId(null);
             setPendingRole('guest');
+            setPendingCode(null);
             router.push('/(onboarding)/create-account');
           }}>
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
@@ -212,6 +215,7 @@ export default function InviteScreen() {
 
           <TouchableOpacity style={styles.backLink} onPress={() => {
             setPendingWeddingId(null);
+            setPendingCode(null);
             setPreview(null);
             setPendingResult(null);
             previewAnim.setValue(0);

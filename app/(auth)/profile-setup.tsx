@@ -16,7 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
-import { createMember, getMember, updateMember, addWeddingToIndex, setUserProfile, UserDoc } from '../../lib/firestore';
+import { createMember, getMember, claimHostRole, addWeddingToIndex, setUserProfile, UserDoc, UserRole } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
@@ -24,10 +24,12 @@ export default function ProfileSetupScreen() {
   const {
     pendingRole: role,
     pendingWeddingId,
+    pendingCode,
     globalProfile,
     setUserDoc,
     setGlobalProfile,
     setPendingWeddingId,
+    setPendingCode,
     setUserWeddingIds,
     userWeddingIds,
     switchWedding,
@@ -52,8 +54,8 @@ export default function ProfileSetupScreen() {
   async function settleExistingMember(uid: string, weddingId: string, existing: UserDoc) {
     let memberDoc = existing;
     let elevated = false;
-    if (role === 'host' && existing.role !== 'host') {
-      await updateMember(weddingId, uid, { role: 'host' });
+    if (role === 'host' && existing.role !== 'host' && pendingCode) {
+      await claimHostRole(weddingId, pendingCode);
       memberDoc = { ...existing, role: 'host' };
       elevated = true;
     }
@@ -61,6 +63,7 @@ export default function ProfileSetupScreen() {
     setUserDoc(memberDoc);
     setUserWeddingIds(userWeddingIds.includes(weddingId) ? userWeddingIds : [...userWeddingIds, weddingId]);
     setPendingWeddingId(null);
+    setPendingCode(null);
     Alert.alert(
       elevated ? 'Host access granted' : 'Already joined',
       elevated
@@ -209,15 +212,35 @@ export default function ProfileSetupScreen() {
         displayName: name,
         howTheyKnow: howTheyKnow.trim(),
         photoURL,
-        role,
+        role: 'guest' as UserRole,
         isSingle,
       };
       await createMember(pendingWeddingId, uid, memberData);
+      // Register the wedding before attempting elevation, so a failed claim
+      // still leaves a complete, working guest membership rather than a member
+      // doc the account index doesn't know about.
       await addWeddingToIndex(uid, pendingWeddingId);
+      // Rules only ever accept a client-written 'guest'. A host code is
+      // redeemed server-side by claimHostRole, which re-validates it.
+      if (role === 'host') {
+        try {
+          if (!pendingCode) throw new Error('missing code');
+          await claimHostRole(pendingWeddingId, pendingCode);
+          memberData.role = 'host';
+        } catch {
+          // They are already in the wedding at this point — don't strand them
+          // on the form over a failed upgrade they can retry or ask a host for.
+          Alert.alert(
+            'Joined as a guest',
+            "You're in, but host access couldn't be granted just now. Re-enter the host code, or ask a host to promote you."
+          );
+        }
+      }
       setUserWeddingIds(
         userWeddingIds.includes(pendingWeddingId) ? userWeddingIds : [...userWeddingIds, pendingWeddingId]
       );
       setPendingWeddingId(null);
+      setPendingCode(null);
       // Drop them straight into the wedding they just joined, matching the
       // host path in confirm.tsx — landing on a one-card party picker that
       // has to be tapped again is a pointless extra step.

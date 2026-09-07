@@ -26,8 +26,9 @@ export default function PhoneAuthScreen() {
   const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;
   const role: 'guest' | 'host' = rawRole === 'host' ? 'host' : 'guest';
   const weddingId = Array.isArray(params.weddingId) ? params.weddingId[0] : params.weddingId;
+  const inviteCode = Array.isArray(params.code) ? params.code[0] : params.code;
 
-  const { setPendingRole, setPendingWeddingId } = useAuthStore();
+  const { setPendingRole, setPendingWeddingId, setPendingCode } = useAuthStore();
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phoneInput, setPhoneInput] = useState('');
@@ -98,6 +99,10 @@ export default function PhoneAuthScreen() {
       // wedding as a guest.
       if (rawRole) setPendingRole(role);
       if (weddingId) setPendingWeddingId(weddingId);
+      // Same guard: restore the code alongside the wedding it belongs to, or a
+      // host code survives as a role with no code to redeem it and the join
+      // quietly lands as a guest.
+      if (inviteCode) setPendingCode(inviteCode);
       await verifyPhoneOtp(e164Phone, codeInput.trim());
       // Success — stay in the loading state rather than resetting it.
       // _layout.tsx's own auth-state listener still has to finish a
