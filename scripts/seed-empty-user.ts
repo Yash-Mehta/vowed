@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as path from 'path';
+import { ensureSeedUser, phoneFor } from './seedIdentities';
 
 const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 if (!admin.apps.length) {
@@ -13,21 +14,11 @@ const auth = admin.auth();
 const db = admin.firestore();
 
 const EMAIL = 'test.empty@example.com';
-const PASSWORD = 'Test123!';
 
 async function seedEmptyUser() {
-  let user;
-  try {
-    user = await auth.createUser({ email: EMAIL, password: PASSWORD, emailVerified: true });
-    console.log('✓ Created user');
-  } catch (e: any) {
-    if (e.code === 'auth/email-already-exists') {
-      user = await auth.getUserByEmail(EMAIL);
-      console.log('✓ User already exists, reusing');
-    } else {
-      throw e;
-    }
-  }
+  // Phone-number identity, not email/password — see scripts/seedIdentities.ts
+  const user = await ensureSeedUser(auth, EMAIL);
+  console.log('✓ User ready');
 
   // Ensure the users doc exists but has no weddings
   await db.doc(`users/${user.uid}`).set({ weddingIds: [] }, { merge: true });
@@ -36,7 +27,7 @@ async function seedEmptyUser() {
   console.log('\n────────────────────────────────────────');
   console.log('Empty test account');
   console.log(`Email:    ${EMAIL}`);
-  console.log(`Password: ${PASSWORD}`);
+  console.log(`Phone:    ${phoneFor(EMAIL)}`);
   console.log('Weddings: none — logs in to empty party selection screen');
   console.log('────────────────────────────────────────');
 }

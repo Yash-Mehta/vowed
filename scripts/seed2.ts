@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as path from 'path';
+import { ensureSeedUser, phoneFor } from './seedIdentities';
 
 const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 if (!admin.apps.length) {
@@ -15,7 +16,6 @@ const auth = admin.auth();
 const WEDDING_ID  = 'seed-wedding-002';
 const GUEST_CODE  = 'VOWED2-GUEST';
 const HOST_CODE   = 'VOWED2-HOST';
-const PASSWORD    = 'Vowed123!';
 
 function ts(iso: string) {
   return admin.firestore.Timestamp.fromDate(new Date(`${iso}+01:00`));
@@ -44,15 +44,9 @@ const GUESTS = [
   { email: 'oliver.park@example.com',  displayName: 'Oliver Park',   howTheyKnow: "Ryan's best man",             avatar: 'https://randomuser.me/api/portraits/men/63.jpg',   isSingle: true  },
 ];
 
+// Phone-number identity, not email/password — see scripts/seedIdentities.ts
 async function createUser(email: string) {
-  try {
-    return await auth.createUser({ email, password: PASSWORD, emailVerified: true });
-  } catch (e: any) {
-    if (e.code === 'auth/email-already-exists') {
-      return await auth.getUserByEmail(email);
-    }
-    throw e;
-  }
+  return ensureSeedUser(auth, email);
 }
 
 async function seed2() {
@@ -159,8 +153,8 @@ async function seed2() {
   console.log('Wedding 2: Emma & Ryan · Lake Como');
   console.log('Guest code:    VOWED2-GUEST');
   console.log('Host code:     VOWED2-HOST');
-  console.log(`Host login:    ${HOST.email} / ${PASSWORD}`);
-  console.log('Shared guest:  sophia.lane@example.com / Vowed123! (in both weddings)');
+  console.log(`Host account:  ${HOST.email} → ${phoneFor(HOST.email)}`);
+  console.log(`Shared guest:  sophia.lane@example.com → ${phoneFor('sophia.lane@example.com')} (in both weddings)`);
   console.log('────────────────────────────────────────');
 }
 
