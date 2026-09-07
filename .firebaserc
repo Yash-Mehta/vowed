@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "our-day-39d9d"
-  }
+  },
+  "targets": {
+    "our-day-39d9d": {
+      "hosting": {
+        "landing": [
+          "vowed-landing"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
