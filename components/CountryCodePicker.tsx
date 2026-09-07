@@ -1,5 +1,17 @@
-import { useState, useMemo } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES, Country } from '../constants/countries';
 import { theme } from '../constants/theme';
@@ -12,7 +24,38 @@ interface Props {
 export function CountryCodePicker({ value, onChange }: Props) {
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const unobstructedHeight = useRef(windowHeight);
+
+  useEffect(() => {
+    if (!visible) return;
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [visible]);
+
+  useEffect(() => {
+    if (keyboardHeight === 0) unobstructedHeight.current = windowHeight;
+  }, [keyboardHeight, windowHeight]);
+
+  // iOS modals get no keyboard avoidance at all, so KeyboardAvoidingView lifts
+  // the sheet there. Android's Modal sets SOFT_INPUT_ADJUST_RESIZE on its dialog
+  // window (ReactModalHostView), so the window normally shrinks on its own and a
+  // KeyboardAvoidingView would double-count. That flag is ignored under
+  // edge-to-edge on Android 15+, so pad manually only when the window did NOT
+  // shrink — covering both behaviours without guessing which one is in play.
+  const keyboardOpen = keyboardHeight > 0;
+  const androidKeyboardPad =
+    Platform.OS === 'android' && keyboardOpen && windowHeight >= unobstructedHeight.current
+      ? keyboardHeight
+      : 0;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -22,10 +65,15 @@ export function CountryCodePicker({ value, onChange }: Props) {
     );
   }, [query]);
 
+  function close() {
+    setQuery('');
+    setKeyboardHeight(0);
+    setVisible(false);
+  }
+
   function pick(country: Country) {
     onChange(country);
-    setQuery('');
-    setVisible(false);
+    close();
   }
 
   return (
@@ -36,10 +84,12 @@ export function CountryCodePicker({ value, onChange }: Props) {
         <Text style={styles.chevron}>▾</Text>
       </TouchableOpacity>
 
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
-        <View style={styles.container}>
-          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setVisible(false)} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 8, maxHeight: '70%' }]}>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+        <KeyboardAvoidingView
+          style={[styles.container, { paddingBottom: androidKeyboardPad }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close} />
+          <View style={[styles.sheet, { paddingBottom: keyboardOpen ? 8 : insets.bottom + 8 }]}>
             <Text style={styles.title}>Choose a country</Text>
             <TextInput
               style={styles.search}
@@ -54,6 +104,7 @@ export function CountryCodePicker({ value, onChange }: Props) {
               data={filtered}
               keyExtractor={(c) => c.iso}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.row} onPress={() => pick(item)} activeOpacity={0.65}>
                   <Text style={styles.rowFlag}>{item.flag}</Text>
@@ -64,7 +115,7 @@ export function CountryCodePicker({ value, onChange }: Props) {
               ListEmptyComponent={<Text style={styles.empty}>No matching countries.</Text>}
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -93,6 +144,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 18,
     paddingTop: 16,
     paddingHorizontal: 20,
+    maxHeight: '70%',
     ...theme.shadows.s3,
   },
   title: { fontSize: 16, fontWeight: '600', color: theme.colors.ink, fontFamily: theme.fonts.sans, marginBottom: 12, textAlign: 'center' },
