@@ -15,8 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode, getMember, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
-import { SprigDivider } from '../../components/SprigDivider';
+import { validateInviteCode, getMember, claimHostRole, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
 
@@ -26,7 +25,7 @@ export default function InviteScreen() {
   const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const [pendingResult, setPendingResult] = useState<{ weddingId: string; role: 'guest' | 'host' } | null>(null);
   const router = useRouter();
-  const { setPendingRole, setPendingWeddingId } = useAuthStore();
+  const { setPendingRole, setPendingWeddingId, setPendingCode } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const previewAnim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -61,6 +60,21 @@ export default function InviteScreen() {
       try {
         const existing = await getMember(result.weddingId, auth.currentUser.uid);
         if (existing) {
+          // Never demote (a guest code never downgrades an existing host),
+          // but a host code DOES elevate an existing guest — knowing the
+          // host code is the same trust signal that grants host on first
+          // join, so it should work the same way for an existing member.
+          if (result.role === 'host' && existing.role !== 'host') {
+            try {
+              await claimHostRole(result.weddingId, code.trim().toUpperCase());
+              setLoading(false);
+              Alert.alert('Host access granted', "You've been given host access to this wedding.");
+            } catch (e: any) {
+              setLoading(false);
+              Alert.alert('Error', e?.message ?? 'Could not update your role. Please try again.');
+            }
+            return;
+          }
           setLoading(false);
           Alert.alert('Already joined', "You're already part of this wedding.");
           return;
@@ -72,6 +86,7 @@ export default function InviteScreen() {
     setLoading(false);
     setPendingRole(result.role);
     setPendingWeddingId(result.weddingId);
+    setPendingCode(code.trim().toUpperCase());
     setPreview(result.preview);
     setPendingResult({ weddingId: result.weddingId, role: result.role });
     Animated.timing(previewAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -86,7 +101,7 @@ export default function InviteScreen() {
       return;
     }
     router.push({
-      pathname: '/(auth)/register',
+      pathname: '/(auth)/phone',
       params: { code: code.trim().toUpperCase(), role: pendingResult.role, weddingId: pendingResult.weddingId },
     });
   }
@@ -121,9 +136,6 @@ export default function InviteScreen() {
             <>
               <Text style={styles.cardTitle}>You're invited</Text>
               <Text style={styles.cardSub}>Enter the invite code from your couple to join their wedding album.</Text>
-              <View style={styles.dividerWrap}>
-                <SprigDivider color={theme.colors.accent} />
-              </View>
             </>
           )}
 
@@ -134,9 +146,6 @@ export default function InviteScreen() {
               <Text style={styles.nameDisplay}>{preview.coupleName.split(' & ')[0] ?? preview.coupleName}</Text>
               <Text style={styles.andText}>and</Text>
               <Text style={styles.nameDisplay}>{preview.coupleName.split(' & ')[1] ?? ''}</Text>
-              <View style={styles.dividerWrap}>
-                <SprigDivider color={theme.colors.accent} />
-              </View>
               {preview.dateStamp && <Text style={styles.dateStamp}>{preview.dateStamp}</Text>}
               {preview.venue && <Text style={styles.venue}>{preview.venue}</Text>}
             </Animated.View>
@@ -151,6 +160,13 @@ export default function InviteScreen() {
                 setPreview(null);
                 setPendingResult(null);
                 previewAnim.setValue(0);
+                // Retract the armed join too, not just the local preview —
+                // otherwise editing the code leaves the store pointing at
+                // the previously validated wedding, and the root layout
+                // will still force a join to it later.
+                setPendingWeddingId(null);
+                setPendingRole('guest');
+                setPendingCode(null);
               }
             }}
             placeholder="INVITE CODE"
@@ -181,16 +197,25 @@ export default function InviteScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={styles.signInLink} onPress={() => router.push('/(auth)/login')}>
+          <TouchableOpacity style={styles.signInLink} onPress={() => router.push('/(auth)/phone')}>
             <Text style={styles.signInText}>Already have an account? <Text style={styles.signInBold}>Sign in</Text></Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.createLink} onPress={() => router.push('/(onboarding)/create-account')}>
+          <TouchableOpacity style={styles.createLink} onPress={() => {
+            // Leaving to create a wedding abandons any code entered here —
+            // clear it, or the pending join survives the whole host wizard
+            // and hijacks "Switch wedding party" afterwards.
+            setPendingWeddingId(null);
+            setPendingRole('guest');
+            setPendingCode(null);
+            router.push('/(onboarding)/create-account');
+          }}>
             <Text style={styles.createText}>Planning a wedding? <Text style={styles.createBold}>Create yours</Text></Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.backLink} onPress={() => {
             setPendingWeddingId(null);
+            setPendingCode(null);
             setPreview(null);
             setPendingResult(null);
             previewAnim.setValue(0);
@@ -275,7 +300,6 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     textAlign: 'center',
   },
-  dividerWrap: { width: '60%', marginVertical: 16, alignSelf: 'center' },
   dateStamp: {
     fontSize: 12,
     fontWeight: '600',

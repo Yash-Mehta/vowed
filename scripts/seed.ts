@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as path from 'path';
+import { ensureSeedUser, phoneFor } from './seedIdentities';
 
 const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 admin.initializeApp({
@@ -13,7 +14,6 @@ const auth = admin.auth();
 const WEDDING_ID  = 'seed-wedding-001';
 const GUEST_CODE  = 'VOWED-GUEST';
 const HOST_CODE   = 'VOWED-HOST';
-const PASSWORD    = 'Vowed123!';
 
 function ts(iso: string) {
   return admin.firestore.Timestamp.fromDate(new Date(`${iso}+01:00`));
@@ -95,15 +95,9 @@ const COMMENTS: Record<number, string[]> = {
   7: ['TODAY\'S THE DAY!! 🎉', 'So beautiful!! ☀️', 'See you at the aisle! 💍'],
 };
 
+// Phone-number identity, not email/password — see scripts/seedIdentities.ts
 async function createUser(email: string) {
-  try {
-    return await auth.createUser({ email, password: PASSWORD, emailVerified: true });
-  } catch (e: any) {
-    if (e.code === 'auth/email-already-exists') {
-      return await auth.getUserByEmail(email);
-    }
-    throw e;
-  }
+  return ensureSeedUser(auth, email);
 }
 
 async function seed() {
@@ -243,7 +237,11 @@ async function seed() {
   console.log('\n────────────────────────────────────────');
   console.log('Guest code:    VOWED-GUEST');
   console.log('Host code:     VOWED-HOST');
-  console.log(`Host login:    ${HOST.email} / ${PASSWORD}`);
+  console.log(`Host account:  ${HOST.email} → ${phoneFor(HOST.email)}`);
+  console.log('Sign-in:       phone + SMS code. The default numbers are in the');
+  console.log('               reserved +1 (212) 555-01xx fiction range and cannot');
+  console.log('               receive SMS — set SEED_PHONE_JAMES_CARTER to a phone');
+  console.log('               you control and re-run to sign in as the host.');
   console.log('────────────────────────────────────────');
 }
 

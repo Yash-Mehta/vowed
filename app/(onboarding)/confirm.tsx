@@ -112,7 +112,7 @@ export default function ConfirmScreen() {
       const photoURL = globalProfile?.photoURL ?? null;
       if (!globalProfile?.displayName) {
         await setUserProfile(uid, { displayName, photoURL });
-        setGlobalProfile({ displayName, photoURL });
+        setGlobalProfile({ displayName, photoURL, phoneNumber: globalProfile?.phoneNumber ?? null });
       }
 
       // Register host as first member

@@ -7,96 +7,128 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import * as nodemailer from 'nodemailer';
+import twilio from 'twilio';
 
 initializeApp();
 
 const db = getFirestore();
 
-const gmailUser = defineSecret('GMAIL_USER');
-const gmailPass = defineSecret('GMAIL_APP_PASS');
+const twilioAccountSid = defineSecret('TWILIO_ACCOUNT_SID');
+const twilioAuthToken = defineSecret('TWILIO_AUTH_TOKEN');
+const twilioVerifyServiceSid = defineSecret('TWILIO_VERIFY_SERVICE_SID');
 
-// ── Email template ────────────────────────────────────────────────────────────
+// ── Phone auth via Twilio Verify ────────────────────────────────────────────────
 
-function resetEmailHtml(resetLink: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F4ECE2;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4ECE2;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" style="max-width:480px;background:#FAF6F1;border-radius:22px;padding:48px 40px;font-family:Georgia,serif;">
-        <tr><td align="center" style="padding-bottom:36px;">
-          <div style="font-size:44px;color:#7A4A3F;font-style:italic;letter-spacing:-2px;">Vowed</div>
-          <p style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8C7064;margin:8px 0 0;">Wedding &amp; Celebration App</p>
-        </td></tr>
-        <tr><td style="padding-bottom:12px;">
-          <h1 style="font-size:28px;font-weight:normal;color:#2A1D17;margin:0;line-height:1.2;">Reset your password</h1>
-        </td></tr>
-        <tr><td style="padding-bottom:32px;">
-          <p style="font-family:Arial,sans-serif;font-size:15px;color:#5C463C;line-height:1.7;margin:0;">
-            Someone requested a password reset for your <strong>Vowed</strong> account. Tap the button below to choose a new password.
-          </p>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:32px;">
-          <a href="${resetLink}"
-             style="display:inline-block;background:#7A4A3F;color:#FAF6F1;text-decoration:none;font-family:Arial,sans-serif;font-size:15px;font-weight:600;padding:14px 36px;border-radius:9999px;letter-spacing:0.3px;">
-            Reset my password
-          </a>
-        </td></tr>
-        <tr><td style="padding-bottom:36px;">
-          <p style="font-family:Arial,sans-serif;font-size:12px;color:#8C7064;line-height:1.7;margin:0;">
-            If you didn't request this, you can safely ignore this email — your password won't change.
-            This link expires in <strong>1 hour</strong>.
-          </p>
-        </td></tr>
-        <tr><td style="padding-bottom:36px;">
-          <p style="font-family:Arial,sans-serif;font-size:11px;color:#B59E91;line-height:1.7;margin:0;">
-            Button not working? Copy and paste this link into your browser:<br>
-            <a href="${resetLink}" style="color:#7A4A3F;word-break:break-all;">${resetLink}</a>
-          </p>
-        </td></tr>
-        <tr><td align="center" style="border-top:0.5px solid rgba(122,74,63,0.14);padding-top:24px;">
-          <p style="font-family:Arial,sans-serif;font-size:11px;color:#B59E91;margin:0;">Vowed · Wedding &amp; Celebration App</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+const E164_FORMAT = /^\+[1-9]\d{6,14}$/;
+const OTP_CODE_FORMAT = /^\d{4,10}$/;
+
+// Separate keyspace from enforceInviteRateLimit's otpRateLimits-equivalent —
+// OTP sends cost real money per attempt (Twilio Verify billing), so this is
+// rate-limited on both the sender's IP (stop one client from targeting many
+// numbers) and the target phone number (stop one number from being bombed).
+async function enforceOtpRateLimit(key: string, maxAttempts: number, windowMs: number): Promise<void> {
+  const window = Math.floor(Date.now() / windowMs);
+  const safeKey = key.replace(/[^a-zA-Z0-9.:+_-]/g, '_').slice(0, 200) || 'unknown';
+  const ref = db.doc(`otpRateLimits/${safeKey}_${window}`);
+
+  const snap = await ref.get();
+  const count = (snap.data()?.count as number | undefined) ?? 0;
+  if (count >= maxAttempts) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
+  }
+
+  await ref.set(
+    { count: FieldValue.increment(1), expiresAt: Timestamp.fromMillis((window + 1) * windowMs) },
+    { merge: true }
+  );
 }
 
-// ── Send password reset email ─────────────────────────────────────────────────
+function twilioClient() {
+  return twilio(twilioAccountSid.value(), twilioAuthToken.value());
+}
 
-export const sendResetEmail = onCall(
-  { secrets: [gmailUser, gmailPass] },
+export const sendPhoneOtp = onCall(
+  { secrets: [twilioAccountSid, twilioAuthToken, twilioVerifyServiceSid] },
   async (request) => {
-    const email = (request.data?.email as string | undefined)?.trim().toLowerCase();
-    if (!email) throw new HttpsError('invalid-argument', 'Email is required.');
-
-    let resetLink: string;
-    try {
-      resetLink = await getAuth().generatePasswordResetLink(email);
-    } catch (e: any) {
-      if (e.code === 'auth/user-not-found') {
-        return { success: true };
-      }
-      throw new HttpsError('internal', 'Could not generate reset link.');
+    const phoneNumber = (request.data?.phoneNumber as string | undefined)?.trim();
+    if (!phoneNumber || !E164_FORMAT.test(phoneNumber)) {
+      throw new HttpsError('invalid-argument', 'A valid phone number is required.');
     }
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: gmailUser.value(), pass: gmailPass.value() },
-    });
+    const ip = request.rawRequest.ip ?? 'unknown';
+    await enforceOtpRateLimit(`send_ip_${ip}`, 10, 15 * 60 * 1000);
+    await enforceOtpRateLimit(`send_phone_${phoneNumber}`, 5, 15 * 60 * 1000);
 
-    await transporter.sendMail({
-      from: `"Vowed" <${gmailUser.value()}>`,
-      to: email,
-      subject: 'Reset your Vowed password',
-      html: resetEmailHtml(resetLink),
-    });
+    try {
+      await twilioClient()
+        .verify.v2.services(twilioVerifyServiceSid.value())
+        .verifications.create({ to: phoneNumber, channel: 'sms' });
+    } catch (e: any) {
+      console.error('sendPhoneOtp: Twilio verifications.create failed', { code: e?.code, status: e?.status, message: e?.message });
+      throw new HttpsError('internal', 'Could not send verification code.');
+    }
 
     return { success: true };
+  }
+);
+
+export const verifyPhoneOtp = onCall(
+  { secrets: [twilioAccountSid, twilioAuthToken, twilioVerifyServiceSid] },
+  async (request) => {
+    const phoneNumber = (request.data?.phoneNumber as string | undefined)?.trim();
+    const code = (request.data?.code as string | undefined)?.trim();
+    if (!phoneNumber || !E164_FORMAT.test(phoneNumber)) {
+      throw new HttpsError('invalid-argument', 'A valid phone number is required.');
+    }
+    if (!code || !OTP_CODE_FORMAT.test(code)) {
+      throw new HttpsError('invalid-argument', 'A valid verification code is required.');
+    }
+
+    const ip = request.rawRequest.ip ?? 'unknown';
+    await enforceOtpRateLimit(`verify_ip_${ip}`, 10, 15 * 60 * 1000);
+    await enforceOtpRateLimit(`verify_phone_${phoneNumber}`, 8, 15 * 60 * 1000);
+
+    let check;
+    try {
+      check = await twilioClient()
+        .verify.v2.services(twilioVerifyServiceSid.value())
+        .verificationChecks.create({ to: phoneNumber, code });
+    } catch (e: any) {
+      console.error('verifyPhoneOtp: Twilio verificationChecks.create failed', { code: e?.code, status: e?.status, message: e?.message });
+      // Twilio throws (rather than returning a rejected check) once a
+      // verification is expired, already approved, or otherwise no longer
+      // live — e.g. a resend invalidated the code being submitted, or the
+      // same code was checked twice (SMS autofill + manual submit racing).
+      // That's a "get a new code" situation for the user, not a generic
+      // failure, so surface it the same way as a wrong code rather than a
+      // scary internal error.
+      if (e?.status === 404) {
+        throw new HttpsError('permission-denied', 'Invalid or expired code.');
+      }
+      throw new HttpsError('internal', 'Could not verify code.');
+    }
+
+    if (check.status !== 'approved') {
+      throw new HttpsError('permission-denied', 'Invalid or expired code.');
+    }
+
+    // Reuse the existing account if this number was backfilled or previously
+    // registered, so the person lands back on their own data — otherwise
+    // this is a brand-new phone-only signup.
+    let uid: string;
+    try {
+      const existing = await getAuth().getUserByPhoneNumber(phoneNumber);
+      uid = existing.uid;
+    } catch (e: any) {
+      if (e.code !== 'auth/user-not-found') {
+        throw new HttpsError('internal', 'Could not look up account.');
+      }
+      const created = await getAuth().createUser({ phoneNumber });
+      uid = created.uid;
+    }
+
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
   }
 );
 
@@ -167,6 +199,45 @@ export const validateInviteCode = onCall(async (request) => {
 
   const data = snap.data()!;
   return { weddingId: data.weddingId, role: data.role, preview: data.preview };
+});
+
+// ── Host elevation (server-side code validation) ──────────────────────────────
+
+// Firestore rules cannot see an invite code — the client never writes it — so a
+// client-side `role: 'host'` write was indistinguishable from an attacker
+// self-promoting. This is the only path that turns a member into a host without
+// an existing host doing it from the admin panel.
+export const claimHostRole = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'You must be signed in.');
+
+  const weddingId = (request.data?.weddingId as string | undefined)?.trim();
+  const code = (request.data?.code as string | undefined)?.trim().toUpperCase();
+  if (!weddingId) throw new HttpsError('invalid-argument', 'A wedding is required.');
+  if (!code || !INVITE_CODE_FORMAT.test(code)) {
+    throw new HttpsError('invalid-argument', 'Invalid code format.');
+  }
+
+  // Same limiter as validateInviteCode: this accepts codes, so it is another
+  // brute-force surface on the same short keyspace.
+  await enforceInviteRateLimit(request.rawRequest.ip ?? 'unknown');
+
+  const snap = await db.doc(`weddingsByCode/${code}`).get();
+  const data = snap.data();
+  // One message for every rejection — never reveal whether the code exists,
+  // belongs to another wedding, or is merely the guest code.
+  if (!snap.exists || !data || data.role !== 'host' || data.weddingId !== weddingId) {
+    throw new HttpsError('permission-denied', 'Invalid code for this wedding.');
+  }
+
+  const memberRef = db.doc(`weddings/${weddingId}/members/${uid}`);
+  const member = await memberRef.get();
+  if (!member.exists) {
+    throw new HttpsError('failed-precondition', 'Join this wedding before claiming host access.');
+  }
+
+  await memberRef.set({ role: 'host' }, { merge: true });
+  return { role: 'host' as const };
 });
 
 // ── Push notifications ────────────────────────────────────────────────────────

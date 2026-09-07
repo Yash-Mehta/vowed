@@ -15,8 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
-import { getMember, getWeddingPreviews, updateMember, setUserProfile } from '../lib/firestore';
+import { signOut } from 'firebase/auth';
+import { storage, auth } from '../lib/firebase';
+import { getMember, getWeddingPreviews, updateMember, setUserProfile, deleteAccountFully } from '../lib/firestore';
 import { useAuthStore } from '../store/authStore';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Avatar } from '../components/Avatar';
@@ -128,7 +129,7 @@ export default function SettingsScreen() {
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const url = await getDownloadURL(storageRef);
       await setUserProfile(firebaseUser.uid, { displayName, photoURL: url });
-      setGlobalProfile({ displayName, photoURL: url });
+      setGlobalProfile({ displayName, photoURL: url, phoneNumber: globalProfile?.phoneNumber ?? null });
     } catch (e) {
       Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
     } finally {
@@ -142,13 +143,51 @@ export default function SettingsScreen() {
     try {
       const name = displayName.trim();
       await setUserProfile(firebaseUser.uid, { displayName: name, photoURL: photoURI });
-      setGlobalProfile({ displayName: name, photoURL: photoURI });
+      setGlobalProfile({ displayName: name, photoURL: photoURI, phoneNumber: globalProfile?.phoneNumber ?? null });
       Alert.alert('Saved', 'Your profile has been updated everywhere you\'re a guest or host.');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not save changes. Please try again.');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSignOut() {
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => signOut(auth) },
+    ]);
+  }
+
+  async function handleDeleteAccount() {
+    Alert.alert(
+      'Delete account',
+      'This will permanently delete your account and remove you from every wedding party you\'re part of. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!firebaseUser) return;
+            try {
+              await deleteAccountFully(firebaseUser.uid, userWeddingIds);
+              useAuthStore.getState().clear();
+              await auth.currentUser?.delete();
+            } catch (e: any) {
+              if (e?.code === 'auth/requires-recent-login') {
+                Alert.alert(
+                  'Re-authentication required',
+                  'Please sign out and sign back in, then try deleting your account again.'
+                );
+                return;
+              }
+              throw e;
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -190,6 +229,15 @@ export default function SettingsScreen() {
             autoCapitalize="words"
           />
         </View>
+
+        {globalProfile?.phoneNumber && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Phone number</Text>
+            <View style={[styles.input, styles.inputReadOnly]}>
+              <Text style={styles.readOnlyText}>{globalProfile.phoneNumber}</Text>
+            </View>
+          </View>
+        )}
 
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
@@ -245,6 +293,14 @@ export default function SettingsScreen() {
             </View>
           ))
         )}
+
+        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount} activeOpacity={0.7}>
+          <Text style={styles.deleteAccountText}>Delete account</Text>
+        </TouchableOpacity>
       </ScrollView>
     </ScreenWrapper>
   );
@@ -341,4 +397,10 @@ const styles = StyleSheet.create({
   notifText: { flex: 1, marginRight: 12 },
   notifTitle: { fontSize: 14, color: theme.colors.ink, fontFamily: theme.fonts.sans, fontWeight: '500' },
   notifSub: { fontSize: 11, color: theme.colors.ink4, marginTop: 2, fontFamily: theme.fonts.sans, lineHeight: 15 },
+  inputReadOnly: { backgroundColor: theme.colors.surface2, justifyContent: 'center' },
+  readOnlyText: { fontSize: 15, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
+  signOutBtn: { marginTop: 32, alignItems: 'center', paddingVertical: 12 },
+  signOutText: { fontSize: 14, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
+  deleteAccountBtn: { alignItems: 'center', paddingVertical: 8, marginTop: 4 },
+  deleteAccountText: { fontSize: 12, color: theme.colors.ink4, fontFamily: theme.fonts.sans, textDecorationLine: 'underline' },
 });

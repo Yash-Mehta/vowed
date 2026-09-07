@@ -18,7 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
-import { updateMember, deleteAccount, setUserProfile } from '../../lib/firestore';
+import { updateMember, deleteAccountFully, leaveWedding, setUserProfile } from '../../lib/firestore';
 import { getNotificationPermissionStatus } from '../../lib/notifications';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
@@ -27,7 +27,7 @@ import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { firebaseUser, userDoc, weddingId, setUserDoc, setWeddingId, setGlobalProfile } = useAuthStore();
+  const { firebaseUser, userDoc, weddingId, globalProfile, userWeddingIds, setUserDoc, setWeddingId, setUserWeddingIds, setGlobalProfile } = useAuthStore();
   const [displayName, setDisplayName] = useState(userDoc?.displayName ?? '');
   const [howTheyKnow, setHowTheyKnow] = useState(userDoc?.howTheyKnow ?? '');
   const [isSingle, setIsSingle] = useState(userDoc?.isSingle ?? false);
@@ -109,7 +109,7 @@ export default function ProfileScreen() {
       // comments. Update local state immediately too, for this wedding's
       // UI, rather than waiting on the function + next auth-state cycle.
       await setUserProfile(firebaseUser.uid, { displayName: userDoc?.displayName ?? displayName, photoURL: url });
-      setGlobalProfile({ displayName: userDoc?.displayName ?? displayName, photoURL: url });
+      setGlobalProfile({ displayName: userDoc?.displayName ?? displayName, photoURL: url, phoneNumber: globalProfile?.phoneNumber ?? null });
       setUserDoc({ ...userDoc!, photoURL: url });
     } catch (e) {
       Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
         setUserProfile(firebaseUser.uid, { displayName: name, photoURL: userDoc?.photoURL ?? photoURI }),
         updateMember(weddingId, firebaseUser.uid, { howTheyKnow: know }),
       ]);
-      setGlobalProfile({ displayName: name, photoURL: userDoc?.photoURL ?? photoURI });
+      setGlobalProfile({ displayName: name, photoURL: userDoc?.photoURL ?? photoURI, phoneNumber: globalProfile?.phoneNumber ?? null });
       setUserDoc({ ...userDoc!, displayName: name, howTheyKnow: know });
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (e: any) {
@@ -155,25 +155,37 @@ export default function ProfileScreen() {
   }
 
   async function handleDeleteAccount() {
+    // Only wipe the whole account when this is the user's last wedding —
+    // otherwise this button should do exactly what it says: leave this
+    // wedding, keep the account intact for their other parties.
+    const isLastWedding = userWeddingIds.length <= 1;
     Alert.alert(
-      'Delete account',
-      'This will permanently delete your account and remove you from this wedding. This cannot be undone.',
+      'Remove account',
+      isLastWedding
+        ? "This will remove you from this wedding party and delete your account. This cannot be undone."
+        : "This will remove you from this wedding party. Your account stays active for your other wedding parties.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            if (!firebaseUser) return;
+            if (!firebaseUser || !weddingId) return;
             try {
-              await deleteAccount(firebaseUser.uid, weddingId ?? null);
-              useAuthStore.getState().clear();
-              await auth.currentUser?.delete();
+              if (isLastWedding) {
+                await deleteAccountFully(firebaseUser.uid, userWeddingIds);
+                useAuthStore.getState().clear();
+                await auth.currentUser?.delete();
+              } else {
+                await leaveWedding(firebaseUser.uid, weddingId);
+                setUserWeddingIds(userWeddingIds.filter((id) => id !== weddingId));
+                setWeddingId(null);
+              }
             } catch (e: any) {
               if (e?.code === 'auth/requires-recent-login') {
                 Alert.alert(
                   'Re-authentication required',
-                  'Please sign out and sign back in, then try deleting your account again.'
+                  'Please sign out and sign back in, then try removing your account again.'
                 );
                 return;
               }
@@ -227,6 +239,15 @@ export default function ProfileScreen() {
             autoCapitalize="words"
           />
         </View>
+
+        {globalProfile?.phoneNumber && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Phone number</Text>
+            <View style={[styles.input, styles.inputReadOnly]}>
+              <Text style={styles.readOnlyText}>{globalProfile.phoneNumber}</Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.field}>
           <Text style={styles.label}>How do you know the couple?</Text>
@@ -344,7 +365,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount} activeOpacity={0.7}>
-          <Text style={styles.deleteAccountText}>Delete account</Text>
+          <Text style={styles.deleteAccountText}>Remove account</Text>
         </TouchableOpacity>
       </ScrollView>
     </ScreenWrapper>
@@ -416,6 +437,8 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sans,
   },
   multiline: { minHeight: 80, textAlignVertical: 'top', paddingTop: 11 },
+  inputReadOnly: { backgroundColor: theme.colors.surface2, justifyContent: 'center' },
+  readOnlyText: { fontSize: 15, color: theme.colors.ink3, fontFamily: theme.fonts.sans },
   charCount: { fontSize: 11, color: theme.colors.ink4, textAlign: 'right', marginTop: 4, fontFamily: theme.fonts.sans },
   singleCard: {
     flexDirection: 'row',

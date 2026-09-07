@@ -1,25 +1,38 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Wedding media is private to that wedding's members. Every path used to
+    // gate on request.auth != null alone, so any account holder could read one
+    // wedding's photos and overwrite another's cover image.
+    function isWeddingMember(weddingId) {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/weddings/$(weddingId)/members/$(request.auth.uid));
+    }
+
+    function isImageUnder(maxBytes) {
+      return request.resource.size < maxBytes &&
+             request.resource.contentType.matches('image/.*');
+    }
+
+    // Avatars stay readable to any signed-in user — they are rendered beside
+    // posts and comments across every wedding a person belongs to, and the path
+    // is keyed by uid. Writes remain restricted to your own file.
     match /avatars/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && fileName.matches(request.auth.uid + '.*')
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+                   && isImageUnder(5 * 1024 * 1024);
     }
+
     match /weddings/{weddingId}/coverPhoto.jpg {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-      allow delete: if request.auth != null;
+      allow read: if isWeddingMember(weddingId);
+      allow write: if isWeddingMember(weddingId) && isImageUnder(5 * 1024 * 1024);
+      allow delete: if isWeddingMember(weddingId);
     }
+
     match /weddings/{weddingId}/posts/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 20 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+      allow read: if isWeddingMember(weddingId);
+      allow write: if isWeddingMember(weddingId) && isImageUnder(20 * 1024 * 1024);
     }
   }
 }
