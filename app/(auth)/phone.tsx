@@ -29,6 +29,19 @@ export default function PhoneAuthScreen() {
   const inviteCode = Array.isArray(params.code) ? params.code[0] : params.code;
 
   const { setPendingRole, setPendingWeddingId, setPendingCode } = useAuthStore();
+
+  // Reached with no invite params at all — this is a plain sign-in, not the
+  // continuation of a join (invite.tsx always pushes all three together). Any
+  // pending join still in the store was armed by whoever used the device
+  // before, and would otherwise route THIS user into a stranger's wedding,
+  // redeeming a host code they never saw.
+  useEffect(() => {
+    if (!rawRole && !weddingId && !inviteCode) {
+      setPendingWeddingId(null);
+      setPendingRole('guest');
+      setPendingCode(null);
+    }
+  }, []);
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phoneInput, setPhoneInput] = useState('');

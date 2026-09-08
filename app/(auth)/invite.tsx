@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { validateInviteCode, getMember, claimHostRole, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
+import { validateInviteCode, getMember, claimHostRole, addWeddingToIndex, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
 
@@ -25,7 +25,7 @@ export default function InviteScreen() {
   const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const [pendingResult, setPendingResult] = useState<{ weddingId: string; role: 'guest' | 'host' } | null>(null);
   const router = useRouter();
-  const { setPendingRole, setPendingWeddingId, setPendingCode } = useAuthStore();
+  const { setPendingRole, setPendingWeddingId, setPendingCode, userWeddingIds, setUserWeddingIds } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const previewAnim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -60,6 +60,16 @@ export default function InviteScreen() {
       try {
         const existing = await getMember(result.weddingId, auth.currentUser.uid);
         if (existing) {
+          // Repair a membership the account index doesn't know about. The join
+          // flow writes the member doc and the index in two separate awaits;
+          // an interruption between them leaves a member doc that never shows
+          // up on the party picker, and re-entering the code used to land here
+          // and do nothing — a dead end with no way out. arrayUnion makes this
+          // idempotent, so it is safe on the normal path too.
+          await addWeddingToIndex(auth.currentUser.uid, result.weddingId).catch(() => {});
+          if (!userWeddingIds.includes(result.weddingId)) {
+            setUserWeddingIds([...userWeddingIds, result.weddingId]);
+          }
           // Never demote (a guest code never downgrades an existing host),
           // but a host code DOES elevate an existing guest — knowing the
           // host code is the same trust signal that grants host on first
@@ -69,6 +79,7 @@ export default function InviteScreen() {
               await claimHostRole(result.weddingId, code.trim().toUpperCase());
               setLoading(false);
               Alert.alert('Host access granted', "You've been given host access to this wedding.");
+              router.replace('/select-wedding');
             } catch (e: any) {
               setLoading(false);
               Alert.alert('Error', e?.message ?? 'Could not update your role. Please try again.');
@@ -77,6 +88,7 @@ export default function InviteScreen() {
           }
           setLoading(false);
           Alert.alert('Already joined', "You're already part of this wedding.");
+          router.replace('/select-wedding');
           return;
         }
       } catch {

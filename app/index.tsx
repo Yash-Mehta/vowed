@@ -43,10 +43,12 @@ function useEntrance(steps: number) {
   useEffect(() => {
     let cancelled = false;
 
+    const settle = () => progress.forEach((v) => v.setValue(1));
+
     AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
       if (cancelled) return;
       if (reduceMotion) {
-        progress.forEach((v) => v.setValue(1));
+        settle();
         return;
       }
       Animated.stagger(
@@ -61,6 +63,11 @@ function useEntrance(steps: number) {
           })
         )
       ).start();
+    }).catch(() => {
+      // A rejection here used to leave the rule, tagline and both buttons at
+      // opacity 0 forever — the screen would render with no way forward.
+      // AnimatedSplash guards the same call the same way.
+      if (!cancelled) settle();
     });
 
     return () => {
@@ -127,13 +134,13 @@ export default function IndexScreen() {
         <View style={styles.masthead}>
           {/* Deliberately not animated: the splash lockup fades out over this
               exact spot, so the wordmark is already in place underneath it. */}
-          <Text style={styles.wordmark} accessibilityRole="header">
+          <Text style={styles.wordmark} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
             Vowed Social
           </Text>
 
           <Animated.View style={[styles.rule, step(0)]} />
 
-          <Animated.Text style={[styles.tagline, step(1)]}>
+          <Animated.Text style={[styles.tagline, step(1)]} maxFontSizeMultiplier={1.3}>
             The story is just beginning
           </Animated.Text>
         </View>
@@ -241,7 +248,8 @@ const styles = StyleSheet.create({
   createLinkText: {
     fontSize: 14,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.ink3,
+    // ink3 measures 4.23:1 on this cream field — under AA for text this size.
+    color: theme.colors.ink2,
   },
   createLinkTextPressed: { color: theme.colors.ink },
   createLinkStrong: { color: theme.colors.accentDeep, fontWeight: '600' },

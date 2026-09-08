@@ -124,9 +124,9 @@ export default function ProfileScreen() {
     try {
       await updateMember(weddingId, firebaseUser.uid, { isSingle: value });
       setUserDoc({ ...userDoc!, isSingle: value });
-    } catch (e: any) {
+    } catch (e: unknown) {
       setIsSingle(!value);
-      Alert.alert('Error', e?.message ?? 'Could not update. Please try again.');
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not update. Please try again.');
     }
   }
 
