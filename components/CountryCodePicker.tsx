@@ -33,6 +33,10 @@ export function CountryCodePicker({ value, onChange }: Props) {
     if (!visible) return;
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    // Seed from current state: the phone screen autoFocuses its input, so the
+    // keyboard is typically already up when this opens and a focus swap does
+    // not necessarily fire a show event.
+    setKeyboardHeight(Keyboard.metrics()?.height ?? 0);
     const show = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
     const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
     return () => {
