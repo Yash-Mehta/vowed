@@ -100,7 +100,7 @@ export async function createMember(
 }
 
 export async function updateMember(weddingId: string, uid: string, data: Partial<UserDoc>) {
-  await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), data as any);
+  await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), data);
 }
 
 // ── User index CRUD ────────────────────────────────────────────────────────────
@@ -176,8 +176,6 @@ export async function validateInviteCode(
 
 // ── Host elevation ─────────────────────────────────────────────────────────────
 
-export class HostClaimError extends Error {}
-
 // Firestore rules can't validate an invite code, so the client no longer writes
 // `role: 'host'` itself — the callable checks the code against weddingsByCode
 // with the Admin SDK and sets the role server-side.
@@ -193,7 +191,7 @@ export async function claimHostRole(weddingId: string, code: string): Promise<vo
     if (e instanceof FunctionsError && e.code === 'functions/resource-exhausted') {
       throw new InviteCodeRateLimitedError(e.message);
     }
-    throw new HostClaimError(
+    throw new Error(
       e instanceof FunctionsError && e.code === 'functions/permission-denied'
         ? 'That host code is not valid for this wedding.'
         : 'Could not grant host access. Please try again.'

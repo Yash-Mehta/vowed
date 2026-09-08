@@ -145,8 +145,8 @@ export default function SettingsScreen() {
       await setUserProfile(firebaseUser.uid, { displayName: name, photoURL: photoURI });
       setGlobalProfile({ displayName: name, photoURL: photoURI, phoneNumber: globalProfile?.phoneNumber ?? null });
       Alert.alert('Saved', 'Your profile has been updated everywhere you\'re a guest or host.');
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save changes. Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not save changes. Please try again.');
     } finally {
       setSaving(false);
     }
