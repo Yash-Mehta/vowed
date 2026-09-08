@@ -28,6 +28,7 @@ export default function RootLayout() {
     setUserWeddingIds,
     setPendingWeddingId,
     setPendingRole,
+    setPendingCode,
     isLoading,
     firebaseUser,
     weddingId,
@@ -114,6 +115,7 @@ export default function RootLayout() {
         // bounces to that stale join form instead of the party picker.
         setPendingWeddingId(null);
         setPendingRole('guest');
+        setPendingCode(null);
         setLoading(false);
       }
     });

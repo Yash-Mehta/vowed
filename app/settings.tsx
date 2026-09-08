@@ -171,14 +171,20 @@ export default function SettingsScreen() {
           onPress: async () => {
             if (!firebaseUser) return;
             try {
+              // Firestore deletes need a live auth token, so data must go
+              // first — but the local store must NOT be cleared until the Auth
+              // deletion has actually succeeded. It used to be wiped in
+              // between, so a requires-recent-login failure left the user
+              // signed in with every wedding already gone, reading a message
+              // that implied nothing had happened yet.
               await deleteAccountFully(firebaseUser.uid, userWeddingIds);
-              useAuthStore.getState().clear();
               await auth.currentUser?.delete();
+              useAuthStore.getState().clear();
             } catch (e: any) {
               if (e?.code === 'auth/requires-recent-login') {
                 Alert.alert(
-                  'Re-authentication required',
-                  'Please sign out and sign back in, then try deleting your account again.'
+                  'Sign in again to finish',
+                  'Your wedding data has been removed, but the account itself still needs deleting. Sign out, sign back in, then delete again to finish.'
                 );
                 return;
               }
