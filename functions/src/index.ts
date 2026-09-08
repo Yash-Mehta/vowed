@@ -408,10 +408,25 @@ export const onPostDeleted = onDocumentDeleted(
 
     const urls: string[] = post.photoURLs?.length ? post.photoURLs : post.photoURL ? [post.photoURL] : [];
     const bucket = getStorage().bucket();
+    // photoURLs is client-written and rules do not constrain its contents, so a
+    // member of ANY wedding could point it at someone else's object and have
+    // this function delete it — the Admin SDK bypasses storage.rules, and the
+    // path regex needs no valid access token. Cover photos and avatars sit at
+    // fixed, guessable paths, so that was arbitrary destruction of other
+    // people's media. Deletion is now confined to this post's own wedding.
+    const allowedPrefix = `weddings/${weddingId}/`;
     await Promise.allSettled(
       urls.map(async (url) => {
         const path = storagePathFromDownloadURL(url);
         if (!path) return;
+        if (!path.startsWith(allowedPrefix) || path.includes('..')) {
+          console.warn('onPostDeleted: refusing to delete out-of-scope storage path', {
+            weddingId,
+            postId,
+            path,
+          });
+          return;
+        }
         await bucket.file(path).delete({ ignoreNotFound: true });
       })
     );
