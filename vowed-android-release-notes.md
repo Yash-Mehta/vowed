@@ -1,10 +1,16 @@
-Vowed v1.5.0 (versionCode 20) — Android Production Release Notes
+Vowed v1.5.1 (versionCode 21) — Android Production Release Notes
 
-Last live Play version: v1.4.10. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
+Last live Play version: v1.5.0. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
 
-versionCode 20 supersedes 18 and 19, neither promoted to production — so these notes cover everything since v1.4.10. New in 20: a redesigned welcome screen with clearer buttons, on top of 19's country-picker keyboard fix and server-side host access.
+v1.5.1 is a fix release on top of v1.5.0, which is live. Use the SHORT v1.5.1 block below for the Play listing.
 
-## Google Play "What's New" (user-facing, <=500 chars)
+## Google Play "What's new" — v1.5.1 (use this)
+
+Fixes: signing in on a shared device no longer picks up an invite code someone else entered; an interrupted join now completes when you re-enter your code; the welcome screen can no longer appear without its buttons; better text contrast; and the keyboard no longer covers the country list when searching on some Android phones.
+
+---
+
+## Google Play "What's New" — v1.5.0 (already published, for reference)
 
 Signing in has changed: Vowed now uses your phone number instead of an email and password. Enter your number, get a 6-digit code by text, and you're in. Your account, wedding parties and photos are exactly where you left them. Also new: a Settings screen with sign out and account deletion, host invite codes that upgrade you from guest to host, a fix for the keyboard covering the country list, a redesigned welcome screen, and security improvements.
 

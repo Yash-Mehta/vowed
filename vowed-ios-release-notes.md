@@ -1,10 +1,24 @@
-Vowed v1.5.0 (build 16) — App Store / TestFlight Release Notes
+Vowed v1.5.1 (build 1) — App Store / TestFlight Release Notes
 
-Last live App Store version: v1.4.10. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
+Last live App Store version: v1.5.0. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
 
-Build 16 supersedes builds 13-15, none of which were released publicly — so these notes cover everything since v1.4.10. New in 16: a redesigned welcome screen with clearer buttons, on top of 14's country-picker keyboard fix and server-side host access.
+v1.5.1 is a fix release on top of v1.5.0, which is live. The notes below still describe the whole v1.5.0 change for reference, but the App Store copy should be the SHORT v1.5.1 block immediately following.
 
-## App Store "What's New" (user-facing)
+## App Store "What's New" — v1.5.1 (use this)
+
+Fixes and safeguards:
+
+Signing in on a shared device no longer risks picking up a wedding invite someone else entered before you.
+
+If a join was interrupted part-way, re-entering your invite code now finishes it properly instead of saying you had already joined.
+
+Fixed a rare case where the welcome screen could appear without its buttons.
+
+Improved text contrast on the welcome screen, and fixed the keyboard covering the country list when searching on some Android phones.
+
+---
+
+## App Store "What's New" — v1.5.0 (already published, for reference)
 
 Signing in has changed.
 
