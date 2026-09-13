@@ -463,6 +463,15 @@ export const onProfileUpdated = onDocumentUpdated('users/{uid}', async (event) =
   if (nameChanged) postUpdate.authorName = after.displayName;
   if (photoChanged) postUpdate.authorPhotoURL = after.photoURL ?? null;
 
+  // Like docs carry their own denormalized copy (feed.tsx writes it, and
+  // LikesSheet renders straight from it) but were never part of this fan-out.
+  // Avatars upload to the fixed path avatars/{uid}.jpg, so changing one
+  // REVOKES the previous download token — every like written before the change
+  // then holds a URL that 403s, and the likes sheet shows a blank circle while
+  // still showing the name. Same shape as memberUpdate; the like doc id is the
+  // uid, so each one can be addressed directly rather than scanned for.
+  const likeUpdate = memberUpdate;
+
   // One settled-promise pass per wedding — a missing/broken member doc for
   // one wedding shouldn't block propagation to the user's other weddings.
   await Promise.allSettled(
@@ -477,6 +486,21 @@ export const onProfileUpdated = onDocumentUpdated('users/{uid}', async (event) =
         const batch = db.batch();
         postsSnap.docs.forEach((d) => batch.update(d.ref, postUpdate));
         await batch.commit();
+      }
+
+      // Likes are not queryable by liker (the uid is the document id, and
+      // collection-group queries cannot filter on it), so address one candidate
+      // per post. `select()` fetches ids only, and getAll batches the lookups.
+      const allPosts = await db.collection(`weddings/${weddingId}/posts`).select().get();
+      if (allPosts.size > 0) {
+        const likeRefs = allPosts.docs.map((d) => d.ref.collection('likes').doc(uid));
+        const likeSnaps = await db.getAll(...likeRefs);
+        const present = likeSnaps.filter((s) => s.exists);
+        for (let i = 0; i < present.length; i += 400) {
+          const batch = db.batch();
+          present.slice(i, i + 400).forEach((s) => batch.update(s.ref, likeUpdate));
+          await batch.commit();
+        }
       }
     })
   );
