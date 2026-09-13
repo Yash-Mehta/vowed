@@ -123,8 +123,22 @@ export const verifyPhoneOtp = onCall(
       if (e.code !== 'auth/user-not-found') {
         throw new HttpsError('internal', 'Could not look up account.');
       }
-      const created = await getAuth().createUser({ phoneNumber });
-      uid = created.uid;
+      try {
+        const created = await getAuth().createUser({ phoneNumber });
+        uid = created.uid;
+      } catch (createErr: any) {
+        // Two verifies for the same brand-new number can race: both miss the
+        // lookup above, both create, one loses with
+        // auth/phone-number-already-exists. That used to escape unhandled and
+        // fail a sign-in carrying a VALID code — and Twilio has already spent
+        // the code by then, so the user had to request a new one. The trigger
+        // is ordinary: SMS autofill submitting while the user also taps.
+        if (createErr?.code !== 'auth/phone-number-already-exists') {
+          console.error('verifyPhoneOtp: createUser failed', { code: createErr?.code });
+          throw new HttpsError('internal', 'Could not create account.');
+        }
+        uid = (await getAuth().getUserByPhoneNumber(phoneNumber)).uid;
+      }
     }
 
     const customToken = await getAuth().createCustomToken(uid);

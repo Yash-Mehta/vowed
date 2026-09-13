@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Image, View, Text, StyleSheet } from 'react-native';
 import { theme } from '../constants/theme';
 
@@ -9,6 +10,14 @@ interface Props {
 }
 
 export function Avatar({ uri, name, size = 40, ringed = false }: Props) {
+  // A URL that fails to load used to render an empty circle — indistinguishable
+  // from a styling bug, and silent. Avatars live at the fixed path
+  // avatars/{uid}.jpg, so replacing one revokes the previous download token and
+  // any stale copy of that URL starts returning 403. Falling back to initials
+  // makes that degrade like "no photo set" instead of looking broken.
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+
   const initials = name
     .split(' ')
     .map((w) => w[0] ?? '')
@@ -16,8 +25,12 @@ export function Avatar({ uri, name, size = 40, ringed = false }: Props) {
     .slice(0, 2)
     .toUpperCase();
 
-  const avatar = uri ? (
-    <Image source={{ uri }} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+  const avatar = uri && !failed ? (
+    <Image
+      source={{ uri }}
+      onError={() => setFailed(true)}
+      style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
+    />
   ) : (
     <View style={[styles.placeholder, { width: size, height: size, borderRadius: size / 2 }]}>
       <Text style={[styles.initials, { fontSize: size * 0.38, fontFamily: theme.fonts.serif }]}>

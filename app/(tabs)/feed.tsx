@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   FlatList,
   View,
@@ -15,6 +15,10 @@ import {
   orderBy,
   onSnapshot,
   doc,
+  getDoc,
+  getDocs,
+  limit,
+  startAfter,
   setDoc,
   deleteDoc,
   updateDoc,
@@ -35,8 +39,22 @@ import { EmptyState } from '../../components/EmptyState';
 import { Sprig } from '../../components/Sprig';
 import { theme } from '../../constants/theme';
 
+// The live subscription is capped at this, so opening the feed no longer costs
+// one read per post the wedding has ever made. Batches are fetched ahead of the
+// scroll position, not on a button — the feed reads as one continuous scroll.
+const PAGE_SIZE = 30;
+
+// Start fetching the next batch when the user is still two screens from the
+// bottom. At typical scroll speed the next batch has landed long before they
+// reach it, so the spinner below is a fallback for slow connections rather than
+// something seen in normal use.
+const PREFETCH_SCREENS = 2;
+
 export default function FeedScreen() {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [livePosts, setLivePosts] = useState<Post[]>([]);
+  const [olderPosts, setOlderPosts] = useState<Post[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [reachedEnd, setReachedEnd] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activePostId, setActivePostId] = useState<string | null>(null);
@@ -48,35 +66,103 @@ export default function FeedScreen() {
   const daysAway = getDaysUntilWedding();
   const { days: cdDays, hours: cdHours, mins: cdMins } = getCountdownParts();
 
+  // The live subscription covers only the newest page. That is where new posts
+  // arrive and where everyone is looking during an event; older pages are
+  // fetched once, on demand. Previously this subscribed to every post the
+  // wedding had ever made, so opening the feed cost one read per post and held
+  // them all live — fine at ten photos, not at a weekend's worth.
   useEffect(() => {
     if (!weddingId) return;
-    const q = query(postsCol(weddingId), orderBy('createdAt', 'desc'));
+    setOlderPosts([]);
+    setReachedEnd(false);
+    const q = query(postsCol(weddingId), orderBy('createdAt', 'desc'), limit(PAGE_SIZE));
     const unsub = onSnapshot(q, (snap) => {
-      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post));
-      setPosts(all.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)));
+      setLivePosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
       setLoading(false);
     }, onSnapshotError);
     return unsub;
   }, [weddingId]);
 
+  // Pinned first; Array.sort is stable, so createdAt order survives within each
+  // group. Dedupes because a post can appear in both lists briefly after one is
+  // pinned or edited.
+  const posts = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: Post[] = [];
+    for (const p of [...livePosts, ...olderPosts]) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      merged.push(p);
+    }
+    return merged.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  }, [livePosts, olderPosts]);
+
+  const loadMore = useCallback(async () => {
+    if (!weddingId || loadingMore || reachedEnd) return;
+    // Cursor comes from the unsorted tail, not `posts` — pinning reorders that
+    // list and its last element is not necessarily the oldest.
+    const cursorPost = olderPosts.length ? olderPosts[olderPosts.length - 1] : livePosts[livePosts.length - 1];
+    if (!cursorPost?.createdAt) return;
+    setLoadingMore(true);
+    try {
+      const snap = await getDocs(
+        query(
+          postsCol(weddingId),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursorPost.createdAt),
+          limit(PAGE_SIZE)
+        )
+      );
+      setOlderPosts((prev) => [...prev, ...snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post))]);
+      if (snap.size < PAGE_SIZE) setReachedEnd(true);
+    } catch {
+      // Leave the list as it is; the user can pull to retry by scrolling again.
+      setReachedEnd(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [weddingId, loadingMore, reachedEnd, livePosts, olderPosts]);
+
+  // Was one live listener per post, purely to answer "did I like this?" — so a
+  // 300-post feed opened 300 subscriptions and tore them all down every time a
+  // new post arrived. Nobody but this user can change this user's like, and
+  // handleLike already updates the set optimistically, so a subscription bought
+  // nothing. One read per post instead, each post checked only once.
+  const checkedLikes = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    checkedLikes.current = new Set();
+    setLikedIds(new Set());
+  }, [weddingId, firebaseUser?.uid]);
+
   useEffect(() => {
     if (!firebaseUser || !weddingId || posts.length === 0) return;
     const uid = firebaseUser.uid;
-    const unsubscribers: (() => void)[] = [];
-    posts.forEach((post) => {
-      const likeRef = doc(db, 'weddings', weddingId, 'posts', post.id, 'likes', uid);
-      const unsub = onSnapshot(likeRef, (snap) => {
-        setLikedIds((prev) => {
-          const next = new Set(prev);
-          if (snap.exists()) next.add(post.id);
-          else next.delete(post.id);
-          return next;
-        });
-      }, onSnapshotError);
-      unsubscribers.push(unsub);
-    });
-    return () => unsubscribers.forEach((u) => u());
-  }, [posts.length, firebaseUser?.uid, weddingId]);
+    const unchecked = posts.filter((p) => !checkedLikes.current.has(p.id));
+    if (unchecked.length === 0) return;
+    unchecked.forEach((p) => checkedLikes.current.add(p.id));
+
+    let cancelled = false;
+    (async () => {
+      const liked = await Promise.all(
+        unchecked.map(async (p) => {
+          try {
+            const snap = await getDoc(doc(db, 'weddings', weddingId, 'posts', p.id, 'likes', uid));
+            return snap.exists() ? p.id : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelled) return;
+      const hits = liked.filter((id): id is string => id !== null);
+      if (hits.length === 0) return;
+      setLikedIds((prev) => new Set([...prev, ...hits]));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [posts, firebaseUser?.uid, weddingId]);
 
   const handleLike = useCallback(
     async (post: Post) => {
@@ -181,6 +267,8 @@ export default function FeedScreen() {
         keyExtractor={(p) => p.id}
         extraData={likedIds}
         showsVerticalScrollIndicator={false}
+        onEndReached={loadMore}
+        onEndReachedThreshold={PREFETCH_SCREENS}
         ListHeaderComponent={
           <>
             <View style={styles.headerRow}>
@@ -272,7 +360,9 @@ export default function FeedScreen() {
           />
         }
         ListFooterComponent={
-          posts.length > 0 ? (
+          loadingMore ? (
+            <ActivityIndicator style={{ marginVertical: 24 }} color={theme.colors.accent} />
+          ) : posts.length > 0 && reachedEnd ? (
             <Text style={styles.footer}>The story is just beginning ·</Text>
           ) : null
         }
