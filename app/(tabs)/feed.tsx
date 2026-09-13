@@ -15,6 +15,7 @@ import {
   where,
   orderBy,
   onSnapshot,
+  QueryDocumentSnapshot,
   doc,
   getDoc,
   getDocs,
@@ -57,6 +58,11 @@ export default function FeedScreen() {
   const [olderPosts, setOlderPosts] = useState<Post[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [reachedEnd, setReachedEnd] = useState(false);
+  // Document snapshot, not a field value. startAfter(timestamp) excludes EVERY
+  // document sharing that timestamp, so two photos uploaded in the same instant
+  // would silently drop one from the feed. A snapshot cursor disambiguates by
+  // document path and cannot skip.
+  const cursorDoc = useRef<QueryDocumentSnapshot | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activePostId, setActivePostId] = useState<string | null>(null);
@@ -77,9 +83,15 @@ export default function FeedScreen() {
     if (!weddingId) return;
     setOlderPosts([]);
     setReachedEnd(false);
+    cursorDoc.current = null;
     const q = query(postsCol(weddingId), orderBy('createdAt', 'desc'), limit(PAGE_SIZE));
     const unsub = onSnapshot(q, (snap) => {
       setLivePosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
+      // Only seed the cursor from the live page; once older batches exist they
+      // own it, or a live update would rewind paging to the end of page one.
+      if (!cursorDoc.current && snap.docs.length > 0) {
+        cursorDoc.current = snap.docs[snap.docs.length - 1];
+      }
       setLoading(false);
     }, onSnapshotError);
     return unsub;
@@ -122,29 +134,26 @@ export default function FeedScreen() {
 
   const loadMore = useCallback(async () => {
     if (!weddingId || loadingMore || reachedEnd) return;
-    // Cursor comes from the unsorted tail, not `posts` — pinning reorders that
-    // list and its last element is not necessarily the oldest.
-    const cursorPost = olderPosts.length ? olderPosts[olderPosts.length - 1] : livePosts[livePosts.length - 1];
-    if (!cursorPost?.createdAt) return;
+    const after = cursorDoc.current;
+    if (!after) return;
     setLoadingMore(true);
     try {
       const snap = await getDocs(
-        query(
-          postsCol(weddingId),
-          orderBy('createdAt', 'desc'),
-          startAfter(cursorPost.createdAt),
-          limit(PAGE_SIZE)
-        )
+        query(postsCol(weddingId), orderBy('createdAt', 'desc'), startAfter(after), limit(PAGE_SIZE))
       );
-      setOlderPosts((prev) => [...prev, ...snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post))]);
+      if (snap.docs.length > 0) {
+        cursorDoc.current = snap.docs[snap.docs.length - 1];
+        setOlderPosts((prev) => [...prev, ...snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post))]);
+      }
       if (snap.size < PAGE_SIZE) setReachedEnd(true);
     } catch {
-      // Leave the list as it is; the user can pull to retry by scrolling again.
-      setReachedEnd(true);
+      // Transient failures must not latch the feed shut — leave reachedEnd
+      // alone so scrolling retries rather than permanently truncating.
+      // eslint-disable-next-line no-console
     } finally {
       setLoadingMore(false);
     }
-  }, [weddingId, loadingMore, reachedEnd, livePosts, olderPosts]);
+  }, [weddingId, loadingMore, reachedEnd]);
 
   // Was one live listener per post, purely to answer "did I like this?" — so a
   // 300-post feed opened 300 subscriptions and tore them all down every time a
