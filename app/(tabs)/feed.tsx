@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   query,
+  where,
   orderBy,
   onSnapshot,
   doc,
@@ -52,6 +53,7 @@ const PREFETCH_SCREENS = 2;
 
 export default function FeedScreen() {
   const [livePosts, setLivePosts] = useState<Post[]>([]);
+  const [pinnedPosts, setPinnedPosts] = useState<Post[]>([]);
   const [olderPosts, setOlderPosts] = useState<Post[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [reachedEnd, setReachedEnd] = useState(false);
@@ -83,19 +85,40 @@ export default function FeedScreen() {
     return unsub;
   }, [weddingId]);
 
+  // Pinning exists to keep something visible regardless of age, so pinned posts
+  // cannot rely on falling inside the newest page — a host pins an announcement
+  // precisely so it outlives the scroll. Fetched separately and merged in.
+  // Equality-only filter, so no composite index is required.
+  useEffect(() => {
+    if (!weddingId) return;
+    const q = query(postsCol(weddingId), where('pinned', '==', true));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setPinnedPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post))),
+      onSnapshotError
+    );
+    return unsub;
+  }, [weddingId]);
+
   // Pinned first; Array.sort is stable, so createdAt order survives within each
-  // group. Dedupes because a post can appear in both lists briefly after one is
-  // pinned or edited.
+  // group. Dedupes because a post can appear in more than one list — a pinned
+  // post is usually also in the live page.
   const posts = useMemo(() => {
     const seen = new Set<string>();
     const merged: Post[] = [];
-    for (const p of [...livePosts, ...olderPosts]) {
+    for (const p of [...pinnedPosts, ...livePosts, ...olderPosts]) {
       if (seen.has(p.id)) continue;
       seen.add(p.id);
       merged.push(p);
     }
-    return merged.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  }, [livePosts, olderPosts]);
+    const at = (p: Post) => p.createdAt?.toMillis() ?? 0;
+    return merged.sort((a, b) => {
+      const pin = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      // The pinned query returns no ordering of its own, so sort within the
+      // group rather than relying on arrival order.
+      return pin !== 0 ? pin : at(b) - at(a);
+    });
+  }, [pinnedPosts, livePosts, olderPosts]);
 
   const loadMore = useCallback(async () => {
     if (!weddingId || loadingMore || reachedEnd) return;
