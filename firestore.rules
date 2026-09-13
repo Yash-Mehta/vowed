@@ -99,8 +99,16 @@ service cloud.firestore {
         // Hosts edit captions and pin; they do not get to rewrite authorship or
         // hand-set engagement counts (those are maintained by Cloud Functions,
         // which run with the Admin SDK and bypass these rules).
+        // Hosts edit captions and pin. They do not get to swap the media on
+        // someone else's post after the fact — rewriting photoURL(s) would
+        // point a trusted post at arbitrary content and orphan the original
+        // objects, since onPostDeleted only cleans up what the doc references.
+        // Changing `type` retroactively reclassifies an announcement.
         allow update: if isHost(weddingId) &&
-          !changing(['authorId', 'likeCount', 'commentCount', 'createdAt']);
+          !changing([
+            'authorId', 'likeCount', 'commentCount', 'createdAt',
+            'type', 'photoURL', 'photoURLs',
+          ]);
         allow delete: if isOwner(resource.data.authorId) || isHost(weddingId);
 
         match /comments/{commentId} {

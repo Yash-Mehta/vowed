@@ -508,8 +508,17 @@ export const onProfileUpdated = onDocumentUpdated('users/{uid}', async (event) =
       const allPosts = await db.collection(`weddings/${weddingId}/posts`).select().get();
       if (allPosts.size > 0) {
         const likeRefs = allPosts.docs.map((d) => d.ref.collection('likes').doc(uid));
-        const likeSnaps = await db.getAll(...likeRefs);
-        const present = likeSnaps.filter((s) => s.exists);
+        // Chunked: getAll takes one ref per post, so a wedding with a weekend's
+        // worth of photos would otherwise put thousands of arguments in a single
+        // RPC. A failure here is swallowed by the enclosing allSettled, so it
+        // would surface only as one wedding's like avatars quietly going stale.
+        const present: FirebaseFirestore.DocumentSnapshot[] = [];
+        for (let i = 0; i < likeRefs.length; i += 100) {
+          const chunk = await db.getAll(...likeRefs.slice(i, i + 100));
+          chunk.forEach((s) => {
+            if (s.exists) present.push(s);
+          });
+        }
         for (let i = 0; i < present.length; i += 400) {
           const batch = db.batch();
           present.slice(i, i + 400).forEach((s) => batch.update(s.ref, likeUpdate));
