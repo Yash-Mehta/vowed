@@ -63,6 +63,10 @@ export default function FeedScreen() {
   // would silently drop one from the feed. A snapshot cursor disambiguates by
   // document path and cannot skip.
   const cursorDoc = useRef<QueryDocumentSnapshot | null>(null);
+  // Ref, not the loadingMore state: FlatList can fire onEndReached twice within
+  // a tick, and both calls would read the same pre-commit state and fetch the
+  // same page twice. The state below still drives the spinner.
+  const fetching = useRef(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activePostId, setActivePostId] = useState<string | null>(null);
@@ -123,7 +127,10 @@ export default function FeedScreen() {
       seen.add(p.id);
       merged.push(p);
     }
-    const at = (p: Post) => p.createdAt?.toMillis() ?? 0;
+    // A just-created post arrives with createdAt null while its
+    // serverTimestamp() is unresolved. It is the newest thing there is, so sort
+    // it first rather than coercing to 0 and dropping it to the bottom.
+    const at = (p: Post) => p.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER;
     return merged.sort((a, b) => {
       const pin = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
       // The pinned query returns no ordering of its own, so sort within the
@@ -133,9 +140,10 @@ export default function FeedScreen() {
   }, [pinnedPosts, livePosts, olderPosts]);
 
   const loadMore = useCallback(async () => {
-    if (!weddingId || loadingMore || reachedEnd) return;
+    if (!weddingId || fetching.current || reachedEnd) return;
     const after = cursorDoc.current;
     if (!after) return;
+    fetching.current = true;
     setLoadingMore(true);
     try {
       const snap = await getDocs(
@@ -148,12 +156,13 @@ export default function FeedScreen() {
       if (snap.size < PAGE_SIZE) setReachedEnd(true);
     } catch {
       // Transient failures must not latch the feed shut — leave reachedEnd
-      // alone so scrolling retries rather than permanently truncating.
-      // eslint-disable-next-line no-console
+      // alone so the next onEndReached retries rather than permanently
+      // truncating the feed for the rest of the session.
     } finally {
+      fetching.current = false;
       setLoadingMore(false);
     }
-  }, [weddingId, loadingMore, reachedEnd]);
+  }, [weddingId, reachedEnd]);
 
   // Was one live listener per post, purely to answer "did I like this?" — so a
   // 300-post feed opened 300 subscriptions and tore them all down every time a
@@ -161,39 +170,50 @@ export default function FeedScreen() {
   // handleLike already updates the set optimistically, so a subscription bought
   // nothing. One read per post instead, each post checked only once.
   const checkedLikes = useRef<Set<string>>(new Set());
+  const inFlightLikes = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     checkedLikes.current = new Set();
+    inFlightLikes.current = new Set();
     setLikedIds(new Set());
   }, [weddingId, firebaseUser?.uid]);
 
+  // `posts` gets a new identity on any change inside the live window — a like,
+  // a comment, a new photo — which during an event is constant. So this effect
+  // re-runs often, and an id must only count as checked once its own fetch has
+  // actually landed. Marking the whole batch up front meant a re-render
+  // mid-flight discarded the results and never retried, silently showing a
+  // liked post as unliked for the rest of the session.
   useEffect(() => {
     if (!firebaseUser || !weddingId || posts.length === 0) return;
     const uid = firebaseUser.uid;
-    const unchecked = posts.filter((p) => !checkedLikes.current.has(p.id));
-    if (unchecked.length === 0) return;
-    unchecked.forEach((p) => checkedLikes.current.add(p.id));
+    const pending = posts.filter(
+      (p) => !checkedLikes.current.has(p.id) && !inFlightLikes.current.has(p.id)
+    );
+    if (pending.length === 0) return;
+    pending.forEach((p) => inFlightLikes.current.add(p.id));
 
-    let cancelled = false;
     (async () => {
-      const liked = await Promise.all(
-        unchecked.map(async (p) => {
+      const results = await Promise.all(
+        pending.map(async (p) => {
           try {
             const snap = await getDoc(doc(db, 'weddings', weddingId, 'posts', p.id, 'likes', uid));
-            return snap.exists() ? p.id : null;
+            return { id: p.id, liked: snap.exists() };
           } catch {
+            // Leave it unchecked so a later pass retries.
             return null;
           }
         })
       );
-      if (cancelled) return;
-      const hits = liked.filter((id): id is string => id !== null);
-      if (hits.length === 0) return;
-      setLikedIds((prev) => new Set([...prev, ...hits]));
+      pending.forEach((p) => inFlightLikes.current.delete(p.id));
+      const hits: string[] = [];
+      results.forEach((r) => {
+        if (!r) return;
+        checkedLikes.current.add(r.id);
+        if (r.liked) hits.push(r.id);
+      });
+      if (hits.length > 0) setLikedIds((prev) => new Set([...prev, ...hits]));
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [posts, firebaseUser?.uid, weddingId]);
 
   const handleLike = useCallback(
@@ -242,9 +262,14 @@ export default function FeedScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: () =>
-          deleteDoc(doc(db, 'weddings', weddingId, 'posts', post.id)).catch(() =>
-            Alert.alert('Error', 'Could not delete post.')
-          ),
+          deleteDoc(doc(db, 'weddings', weddingId, 'posts', post.id))
+            .then(() => {
+              // Older pages are a one-shot fetch with no listener, so a post
+              // that has scrolled out of the live window would otherwise stay
+              // on screen for the very person who just deleted it.
+              setOlderPosts((prev) => prev.filter((p) => p.id !== post.id));
+            })
+            .catch(() => Alert.alert('Error', 'Could not delete post.')),
       },
     ]);
   }
