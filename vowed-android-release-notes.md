@@ -1,10 +1,16 @@
-Vowed v1.5.1 (versionCode 21) — Android Production Release Notes
+Vowed v1.5.2 (versionCode 22) — Android Production Release Notes
 
-Last live Play version: v1.5.0. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
+Last live Play version: v1.5.1. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
 
-v1.5.1 is a fix release on top of v1.5.0, which is live. Use the SHORT v1.5.1 block below for the Play listing.
+v1.5.2 is a fix and performance release on top of v1.5.1. Use the SHORT v1.5.2 block below for the Play listing.
 
-## Google Play "What's new" — v1.5.1 (use this)
+## Google Play "What's new" — v1.5.2 (use this)
+
+The feed now loads faster and uses less data, especially on weddings with lots of photos. Profile pictures appear correctly everywhere, including on likes. Also fixes a rare case where a valid sign-in code could be rejected.
+
+---
+
+## Google Play "What's new" — v1.5.1 (already published, for reference)
 
 Fixes: signing in on a shared device no longer picks up an invite code someone else entered; an interrupted join now completes when you re-enter your code; the welcome screen can no longer appear without its buttons; better text contrast; and the keyboard no longer covers the country list when searching on some Android phones.
 

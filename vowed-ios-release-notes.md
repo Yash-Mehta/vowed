@@ -1,10 +1,35 @@
-Vowed v1.5.1 (build 1) — App Store / TestFlight Release Notes
+Vowed v1.5.2 (build 1) — App Store / TestFlight Release Notes
 
-Last live App Store version: v1.5.0. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
+Last live App Store version: v1.5.1. Covers the phone-only authentication rewrite (email/password removed entirely), a routing audit across every auth and wedding-join path, a codebase cleanup pass, and a security hardening pass.
 
-v1.5.1 is a fix release on top of v1.5.0, which is live. The notes below still describe the whole v1.5.0 change for reference, but the App Store copy should be the SHORT v1.5.1 block immediately following.
+v1.5.2 is a fix and performance release on top of v1.5.1. Use the SHORT v1.5.2 block below for the store listing; earlier blocks are kept for reference only.
 
-## App Store "What's New" — v1.5.1 (use this)
+## App Store "What's New" — v1.5.2 (use this)
+
+The feed now loads faster and uses less data, especially on weddings with lots of photos.
+
+Profile pictures now appear correctly everywhere, including on likes.
+
+Fixed a rare case where a valid sign-in code could be rejected.
+
+---
+
+## TestFlight "What to Test" — v1.5.2
+
+The feed changed how it loads. That is the thing to hammer.
+
+1. Open the feed and scroll all the way to the bottom, past every photo. Nothing should be missing, repeated, or out of order — compare against what you know is there. More photos should load as you scroll, without a visible pause or a button to tap.
+2. Scroll to the very bottom and confirm you reach "The story is just beginning" rather than the list simply stopping.
+3. Have someone post a new photo while you are scrolled partway down. It should appear at the top without disturbing your position or duplicating anything.
+4. Pin an OLD announcement — one far enough back that you have to scroll to reach it. It must jump to the top of the feed immediately. Unpin it and confirm it returns to its place in time. This is the case most likely to be broken.
+5. Like and unlike posts, including ones loaded after scrolling. Reopen the feed and confirm your likes are still shown correctly.
+6. Open a post's like list and check every person shows their profile picture, or their initials if they have none — nobody should show an empty circle.
+7. Turn on airplane mode mid-scroll, then turn it back off and keep scrolling. The feed should recover and keep loading rather than stopping permanently.
+8. Sign in on a phone number that has never used the app before, tapping the code quickly as it autofills.
+
+---
+
+## App Store "What's New" — v1.5.1 (already published, for reference)
 
 Fixes and safeguards:
 

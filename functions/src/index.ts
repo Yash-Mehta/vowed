@@ -123,8 +123,22 @@ export const verifyPhoneOtp = onCall(
       if (e.code !== 'auth/user-not-found') {
         throw new HttpsError('internal', 'Could not look up account.');
       }
-      const created = await getAuth().createUser({ phoneNumber });
-      uid = created.uid;
+      try {
+        const created = await getAuth().createUser({ phoneNumber });
+        uid = created.uid;
+      } catch (createErr: any) {
+        // Two verifies for the same brand-new number can race: both miss the
+        // lookup above, both create, one loses with
+        // auth/phone-number-already-exists. That used to escape unhandled and
+        // fail a sign-in carrying a VALID code — and Twilio has already spent
+        // the code by then, so the user had to request a new one. The trigger
+        // is ordinary: SMS autofill submitting while the user also taps.
+        if (createErr?.code !== 'auth/phone-number-already-exists') {
+          console.error('verifyPhoneOtp: createUser failed', { code: createErr?.code });
+          throw new HttpsError('internal', 'Could not create account.');
+        }
+        uid = (await getAuth().getUserByPhoneNumber(phoneNumber)).uid;
+      }
     }
 
     const customToken = await getAuth().createCustomToken(uid);
@@ -494,8 +508,17 @@ export const onProfileUpdated = onDocumentUpdated('users/{uid}', async (event) =
       const allPosts = await db.collection(`weddings/${weddingId}/posts`).select().get();
       if (allPosts.size > 0) {
         const likeRefs = allPosts.docs.map((d) => d.ref.collection('likes').doc(uid));
-        const likeSnaps = await db.getAll(...likeRefs);
-        const present = likeSnaps.filter((s) => s.exists);
+        // Chunked: getAll takes one ref per post, so a wedding with a weekend's
+        // worth of photos would otherwise put thousands of arguments in a single
+        // RPC. A failure here is swallowed by the enclosing allSettled, so it
+        // would surface only as one wedding's like avatars quietly going stale.
+        const present: FirebaseFirestore.DocumentSnapshot[] = [];
+        for (let i = 0; i < likeRefs.length; i += 100) {
+          const chunk = await db.getAll(...likeRefs.slice(i, i + 100));
+          chunk.forEach((s) => {
+            if (s.exists) present.push(s);
+          });
+        }
         for (let i = 0; i < present.length; i += 400) {
           const batch = db.batch();
           present.slice(i, i + 400).forEach((s) => batch.update(s.ref, likeUpdate));
