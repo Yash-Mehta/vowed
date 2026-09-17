@@ -22,6 +22,24 @@
         "firebase.json",
         "**/.*",
         "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "redirects": [
+        {
+          "source": "/delete-account",
+          "destination": "https://vowedsocial.com/delete-account",
+          "type": 301
+        },
+        {
+          "source": "/csae-policy",
+          "destination": "https://vowedsocial.com/csae-policy",
+          "type": 301
+        },
+        {
+          "source": "/privacy",
+          "destination": "https://vowedsocial.com/privacy",
+          "type": 301
+        }
       ]
     },
     {
