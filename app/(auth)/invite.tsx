@@ -96,8 +96,16 @@ export default function InviteScreen() {
           router.replace('/select-wedding');
           return;
         }
-      } catch {
-        // Permission denied means user is not a member — proceed normally
+      } catch (e: any) {
+        // permission-denied is the expected "not a member" signal, since
+        // firestore.rules gates member reads on isMember. Anything else is a
+        // real failure and must not be read as "not a member" — say so rather
+        // than walking a member into the join flow.
+        if (e?.code !== 'permission-denied') {
+          setLoading(false);
+          Alert.alert('Connection problem', 'Could not check this wedding. Please check your connection and try again.');
+          return;
+        }
       }
     }
     setLoading(false);
