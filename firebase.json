@@ -9,17 +9,30 @@
   "functions": {
     "source": "functions",
     "codebase": "default",
-    "ignore": ["node_modules", ".git", "firebase-debug.log"]
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log"
+    ]
   },
   "hosting": [
     {
       "public": "public",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ]
     },
     {
       "target": "landing",
       "public": "landing-site",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true
     }
   ]
 }

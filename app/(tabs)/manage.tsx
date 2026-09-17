@@ -39,6 +39,7 @@ import { useWeddingStore } from '../../store/weddingStore';
 import { configFromDoc } from '../../lib/weddingConfig';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { GuestRow } from '../../components/GuestRow';
+import { inviteMessage, InviteKind } from '../../lib/invites';
 import { theme } from '../../constants/theme';
 
 type Tab = 'guests' | 'schedule' | 'settings';
@@ -702,9 +703,12 @@ function InviteCodes({ config }: { config: WeddingConfig | null }) {
   const guestCode: string = config?.guestInviteCode ?? '—';
   const hostCode: string = config?.hostInviteCode ?? '—';
 
-  async function handleShare(code: string) {
+  // Was Share.share({ message: code }) — a guest got a text containing nothing
+  // but "G-4B2X". Copy and link shape live in lib/invites.ts.
+  async function handleShare(kind: InviteKind, code: string) {
+    if (!code || code === '—') return;
     try {
-      await Share.share({ message: code });
+      await Share.share({ message: inviteMessage(kind, code, config?.coupleName) });
     } catch {}
   }
 
@@ -717,7 +721,12 @@ function InviteCodes({ config }: { config: WeddingConfig | null }) {
           <Text style={dStyles.fieldLabel}>GUEST CODE</Text>
           <Text style={icStyles.code}>{guestCode}</Text>
         </View>
-        <TouchableOpacity style={icStyles.shareBtn} onPress={() => handleShare(guestCode)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={icStyles.shareBtn}
+          onPress={() => handleShare('guest', guestCode)}
+          accessibilityRole="button"
+          accessibilityLabel="Share guest invite code"
+          activeOpacity={0.7}>
           <Text style={icStyles.shareBtnText}>Share</Text>
         </TouchableOpacity>
       </View>
@@ -727,7 +736,12 @@ function InviteCodes({ config }: { config: WeddingConfig | null }) {
           <Text style={dStyles.fieldLabel}>HOST CODE</Text>
           <Text style={icStyles.code}>{hostCode}</Text>
         </View>
-        <TouchableOpacity style={icStyles.shareBtn} onPress={() => handleShare(hostCode)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={icStyles.shareBtn}
+          onPress={() => handleShare('host', hostCode)}
+          accessibilityRole="button"
+          accessibilityLabel="Share host invite code"
+          activeOpacity={0.7}>
           <Text style={icStyles.shareBtnText}>Share</Text>
         </TouchableOpacity>
       </View>

@@ -13,14 +13,19 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { validateInviteCode, getMember, claimHostRole, addWeddingToIndex, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
 
 export default function InviteScreen() {
-  const [code, setCode] = useState('');
+  // Arrives from a shared join link (vowedsocial.com/join?code=… bounces into
+  // vowed://invite?code=…). Prefilled rather than auto-submitted, so the person
+  // still sees which wedding they are joining before anything is written.
+  const params = useLocalSearchParams<{ code?: string }>();
+  const linkedCode = Array.isArray(params.code) ? params.code[0] : params.code;
+  const [code, setCode] = useState((linkedCode ?? '').toUpperCase());
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const [pendingResult, setPendingResult] = useState<{ weddingId: string; role: 'guest' | 'host' } | null>(null);
