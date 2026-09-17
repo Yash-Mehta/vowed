@@ -17,6 +17,7 @@
   },
   "hosting": [
     {
+      "site": "our-day-39d9d",
       "public": "public",
       "ignore": [
         "firebase.json",
