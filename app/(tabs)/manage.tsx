@@ -31,7 +31,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage } from '../../lib/firebase';
-import { UserDoc, membersCol, scheduleCol, onSnapshotError } from '../../lib/firestore';
+import { UserDoc, PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
 import { WeddingConfig } from '../../lib/weddingConfig';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
@@ -245,6 +245,19 @@ export default function ManageScreen() {
       Alert.alert('Error', 'Could not update role.');
     }
   }
+  // Separate write from handlePromote/handleDemote on purpose: never send
+  // `role` and `partyRole` in one updateDoc. Both would pass the isHost arm,
+  // but a mixed diff muddies the audit trail and any later rule refinement.
+  // No optimistic state — the guest list is an onSnapshot subscription, so the
+  // write round-trips into the UI on its own.
+  async function handleChangePartyRole(uid: string, partyRole: PartyRole) {
+    if (!weddingId) return;
+    try {
+      await updateMember(weddingId, uid, { partyRole });
+    } catch {
+      Alert.alert('Error', 'Could not update role.');
+    }
+  }
   async function handleRemove(uid: string) {
     if (!weddingId) return;
     try {
@@ -407,7 +420,15 @@ export default function ManageScreen() {
             keyExtractor={(g) => g.uid}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <GuestRow uid={item.uid} user={item} currentUid={firebaseUser?.uid} onPromote={handlePromote} onDemote={handleDemote} onRemove={handleRemove} />
+              <GuestRow
+                uid={item.uid}
+                user={item}
+                currentUid={firebaseUser?.uid}
+                onPromote={handlePromote}
+                onDemote={handleDemote}
+                onRemove={handleRemove}
+                onChangePartyRole={handleChangePartyRole}
+              />
             )}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={<Text style={styles.empty}>No guests yet</Text>}

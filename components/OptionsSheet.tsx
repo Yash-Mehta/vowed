@@ -6,6 +6,10 @@ export interface SheetOption {
   label: string;
   onPress?: () => void;
   destructive?: boolean;
+  // Marks the option that reflects current state, so a sheet used as a picker
+  // shows what is already set. Additive — existing callers pass nothing and
+  // render exactly as before.
+  selected?: boolean;
 }
 
 interface Props {
@@ -32,9 +36,16 @@ export function OptionsSheet({ visible, options, onClose }: Props) {
               key={i}
               style={[styles.row, i > 0 && styles.rowBorder]}
               onPress={() => pick(opt)}
+              accessibilityRole="button"
+              accessibilityState={opt.selected ? { selected: true } : undefined}
               activeOpacity={0.65}>
-              <Text style={[styles.label, opt.destructive && styles.destructiveLabel]}>
-                {opt.label}
+              <Text
+                style={[
+                  styles.label,
+                  opt.destructive && styles.destructiveLabel,
+                  opt.selected && styles.selectedLabel,
+                ]}>
+                {opt.selected ? `✓  ${opt.label}` : opt.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -62,6 +73,7 @@ const styles = StyleSheet.create({
   rowBorder: { borderTopWidth: 0.5, borderColor: theme.colors.line },
   label: { fontSize: 16, color: theme.colors.ink, fontFamily: theme.fonts.sans, textAlign: 'center' },
   destructiveLabel: { color: '#C0392B' },
+  selectedLabel: { color: theme.colors.accentDeep, fontWeight: '600' },
   cancelGap: { height: 8, backgroundColor: theme.colors.surface2 },
   cancelRow: { paddingVertical: 16, paddingHorizontal: 24 },
   cancelLabel: {
