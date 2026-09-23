@@ -25,7 +25,10 @@ export const PARTY_ROLE_LABELS: Record<PartyRole, string> = {
   // "Couple" rather than "Bride & Groom": the latter is wrong for same-sex
   // weddings, and this label is shown to every guest.
   couple: 'Couple',
-  bridalParty: 'Bridal party',
+  // "Wedding party", matching PARTY_ROLE_SECTION_TITLES below: the guest list
+  // headings and the badge on a person's profile name the same group, and
+  // "bridal" excludes half of it besides.
+  bridalParty: 'Wedding party',
   family: 'Family',
   guest: 'Guest',
 };

@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useGoBack } from '../../hooks/useGoBack';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -8,6 +16,8 @@ import { UserDoc, onSnapshotError } from '../../lib/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
+import { ImageViewer } from '../../components/ImageViewer';
+import { PARTY_ROLE_LABELS, toPartyRole } from '../../lib/partyRoles';
 import { theme } from '../../constants/theme';
 
 export default function GuestProfileScreen() {
@@ -15,6 +25,7 @@ export default function GuestProfileScreen() {
   const { weddingId } = useAuthStore();
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const goBack = useGoBack('/(tabs)/guests');
 
   useEffect(() => {
@@ -44,6 +55,8 @@ export default function GuestProfileScreen() {
     );
   }
 
+  const partyRole = toPartyRole(user.partyRole);
+
   return (
     <ScreenWrapper>
       <ScrollView
@@ -54,11 +67,35 @@ export default function GuestProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.hero}>
-          <Avatar uri={user.photoURL} name={user.displayName} size={100} ringed />
+          {/* Only tappable when there is a photo — opening a viewer on the
+              initials placeholder would show a blank screen. */}
+          <Pressable
+            onPress={() => setPhotoOpen(true)}
+            disabled={!user.photoURL}
+            accessibilityRole={user.photoURL ? 'imagebutton' : undefined}
+            accessibilityLabel={user.photoURL ? `View ${user.displayName}'s photo` : undefined}>
+            <Avatar uri={user.photoURL} name={user.displayName} size={100} ringed />
+          </Pressable>
           <Text style={styles.name}>{user.displayName}</Text>
-          {user.role === 'host' && (
-            <View style={styles.hostBadge}>
-              <Text style={styles.hostBadgeText}>HOST</Text>
+
+          {/* Two independent axes: role is authorization, partyRole is where
+              they sit in the wedding. Someone can be both, so these are
+              separate pills rather than one. 'guest' is the unmarked default
+              and gets no pill — a badge on everyone distinguishes nobody. */}
+          {(user.role === 'host' || partyRole !== 'guest') && (
+            <View style={styles.badges}>
+              {user.role === 'host' && (
+                <View style={styles.hostBadge}>
+                  <Text style={styles.hostBadgeText}>HOST</Text>
+                </View>
+              )}
+              {partyRole !== 'guest' && (
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>
+                    {PARTY_ROLE_LABELS[partyRole].toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -70,6 +107,13 @@ export default function GuestProfileScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <ImageViewer
+        uri={user.photoURL}
+        name={user.displayName}
+        visible={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+      />
     </ScreenWrapper>
   );
 }
@@ -86,8 +130,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: 'center',
   },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
   hostBadge: {
-    marginTop: 8,
     backgroundColor: theme.colors.accentTint,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -98,6 +148,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
     color: theme.colors.accentDeep,
+    fontFamily: theme.fonts.sans,
+  },
+  // Gold, where HOST is accent-tinted: the two pills carry different kinds of
+  // information and should not read as the same kind of label.
+  roleBadge: {
+    backgroundColor: theme.colors.goldTint,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: theme.radii.pill,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: theme.colors.gold,
     fontFamily: theme.fonts.sans,
   },
   card: {
