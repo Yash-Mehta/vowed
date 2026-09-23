@@ -83,12 +83,30 @@ service cloud.firestore {
         // the creator adding themselves to their own wedding; every other
         // elevation goes through the claimHostRole callable, which validates
         // the invite code server-side.
-        allow create: if isAuth() && isOwner(uid) &&
-          (request.resource.data.role == 'guest' || ownsWedding(weddingId));
+        //
+        // partyRole/isCouple are display-only, but they decide who is shown to
+        // every guest AS the couple — so a self-write is an impersonation, not
+        // a preference, and they are server-controlled in the same way. Member
+        // docs are created with a non-merging setDoc, so create is a fully
+        // client-controlled write path and needs this as much as update does:
+        // constraining only `role` would let anyone who knows a weddingId
+        // create their own member doc already stamped as the couple.
+        //
+        // The creator is exempt via ownsWedding() — confirm.tsx stamps itself
+        // partyRole: 'couple' at creation. Cheap arm first on purpose: the
+        // ordinary guest self-join then costs no extra document read, and only
+        // the creator pays for the get().
+        allow create: if isAuth() && isOwner(uid) && (
+          (request.resource.data.role == 'guest' &&
+           !request.resource.data.keys().hasAny(['partyRole', 'isCouple']))
+          || ownsWedding(weddingId)
+        );
         // Self-edits (name, photo, howTheyKnow, isSingle, fcmToken) stay open;
-        // self-promotion does not. The isHost arm is untouched, so the admin
-        // panel's promote/demote keeps working.
-        allow update: if (isOwner(uid) && !changing(['role'])) || isHost(weddingId);
+        // self-promotion does not, in either sense. The isHost arm is
+        // untouched, so the admin panel's promote, demote and the new role
+        // picker all keep working.
+        allow update: if (isOwner(uid) && !changing(['role', 'partyRole', 'isCouple'])) ||
+          isHost(weddingId);
         allow delete: if isHost(weddingId) || isOwner(uid);
       }
 
