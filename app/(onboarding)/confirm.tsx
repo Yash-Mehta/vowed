@@ -115,22 +115,34 @@ export default function ConfirmScreen() {
         setGlobalProfile({ displayName, photoURL, phoneNumber: globalProfile?.phoneNumber ?? null });
       }
 
-      // Register host as first member
+      // Register host as first member. partyRole/isCouple mark them as the
+      // couple: this is the one point where the couple is known without a
+      // heuristic, since whoever creates the wedding is by definition one half
+      // of it. Their partner joins later with an invite code and is
+      // indistinguishable from any other member, so a host marks them from the
+      // guest list — see PARTY_ROLE_ORDER in lib/partyRoles.ts.
       await createMember(weddingId, uid, {
         displayName,
         howTheyKnow: 'Host',
         photoURL,
         role: 'host',
+        partyRole: 'couple',
+        isCouple: true,
       });
 
       await addWeddingToIndex(uid, weddingId);
       setUserWeddingIds([...userWeddingIds, weddingId]);
       setWeddingId(weddingId);
+      // Must mirror the createMember payload above. Both fields are optional,
+      // so omitting them here is not a type error — it would just leave the
+      // store quietly disagreeing with Firestore until the next cold start.
       setUserDoc({
         displayName,
         howTheyKnow: 'Host',
         photoURL,
         role: 'host',
+        partyRole: 'couple',
+        isCouple: true,
         fcmToken: null,
         createdAt: null,
       });
