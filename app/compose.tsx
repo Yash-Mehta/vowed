@@ -14,7 +14,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { addDoc, serverTimestamp } from 'firebase/firestore';
-import { useRouter } from 'expo-router';
+import { useGoBack } from '../hooks/useGoBack';
 import { storage } from '../lib/firebase';
 import { useAuthStore } from '../store/authStore';
 import { postsCol } from '../lib/firestore';
@@ -24,7 +24,7 @@ import { theme } from '../constants/theme';
 const MAX_PHOTOS = 10;
 
 export default function ComposeScreen() {
-  const router = useRouter();
+  const goBack = useGoBack('/(tabs)/feed');
   const { firebaseUser, userDoc, weddingId, role } = useAuthStore();
   const [caption, setCaption] = useState('');
   const [imageURIs, setImageURIs] = useState<string[]>([]);
@@ -116,7 +116,7 @@ export default function ComposeScreen() {
         commentCount: 0,
         createdAt: serverTimestamp(),
       });
-      router.back();
+      goBack();
     } catch {
       Alert.alert('Error', 'Could not post. Please try again.');
     } finally {
@@ -131,7 +131,7 @@ export default function ComposeScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scroll}>
         <View style={styles.topRow}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
             <Text style={styles.cancel}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.title}>New post</Text>

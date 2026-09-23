@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useGoBack } from '../../hooks/useGoBack';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { UserDoc, onSnapshotError } from '../../lib/firestore';
@@ -14,7 +15,7 @@ export default function GuestProfileScreen() {
   const { weddingId } = useAuthStore();
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const goBack = useGoBack('/(tabs)/guests');
 
   useEffect(() => {
     if (!uid || !weddingId) return;
@@ -48,7 +49,7 @@ export default function GuestProfileScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.back} onPress={goBack} activeOpacity={0.7}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 

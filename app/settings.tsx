@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useGoBack } from '../hooks/useGoBack';
 import {
   View,
   Text,
@@ -31,7 +31,7 @@ interface PartyNotifPrefs {
 }
 
 export default function SettingsScreen() {
-  const router = useRouter();
+  const goBack = useGoBack('/select-wedding');
   const { firebaseUser, globalProfile, userWeddingIds, setGlobalProfile } = useAuthStore();
 
   const [displayName, setDisplayName] = useState(globalProfile?.displayName ?? '');
@@ -199,7 +199,7 @@ export default function SettingsScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <TouchableOpacity onPress={goBack} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={theme.colors.ink} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Settings</Text>

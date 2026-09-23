@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, StyleSheet, Text, View } from 'react-native';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFonts } from 'expo-font';
 import {
@@ -192,7 +192,18 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Slot />
+      {/* A Stack, not a Slot. Slot renders one child with no history, so
+          pushing a root-level route unmounted (tabs) entirely and coming back
+          remounted it on its initial route — every back button landed on the
+          feed regardless of where you started. animation: 'none' is the
+          default so the guard's replace() transitions still look the way they
+          did under Slot; only the four genuinely pushed routes animate. */}
+      <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+        <Stack.Screen name="guest/[uid]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="compose" options={{ animation: 'slide_from_bottom' }} />
+      </Stack>
       {showOverlay && (
         <Animated.View style={[StyleSheet.absoluteFill, styles.overlay, { opacity: overlayOpacity }]}>
           <Text style={styles.overlayTitle}>Vowed</Text>
