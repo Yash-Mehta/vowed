@@ -54,22 +54,40 @@ export default function ProfileSetupScreen() {
   async function settleExistingMember(uid: string, weddingId: string, existing: UserDoc) {
     let memberDoc = existing;
     let elevated = false;
+    let elevationFailed = false;
     if (role === 'host' && existing.role !== 'host' && pendingCode) {
-      await claimHostRole(weddingId, pendingCode);
-      memberDoc = { ...existing, role: 'host' };
-      elevated = true;
+      // Non-fatal. claimHostRole throws on a rate limit or a network failure,
+      // and this runs from the mount guard where nothing above catches — an
+      // unhandled rejection here left the user on a bare spinner forever with
+      // no alert and no way out, and skipped the index repair below. They are
+      // already a member either way; failing to upgrade them must not strand
+      // them on a dead screen.
+      try {
+        await claimHostRole(weddingId, pendingCode);
+        memberDoc = { ...existing, role: 'host' };
+        elevated = true;
+      } catch {
+        elevationFailed = true;
+      }
     }
     await addWeddingToIndex(uid, weddingId);
     setUserDoc(memberDoc);
     setUserWeddingIds(userWeddingIds.includes(weddingId) ? userWeddingIds : [...userWeddingIds, weddingId]);
     setPendingWeddingId(null);
     setPendingCode(null);
-    Alert.alert(
-      elevated ? 'Host access granted' : 'Already joined',
-      elevated
-        ? "You've been given host access to this wedding."
-        : "You're already part of this wedding."
-    );
+    if (elevationFailed) {
+      Alert.alert(
+        'Already joined',
+        "You're already part of this wedding, but host access couldn't be granted just now. Re-enter the host code to try again."
+      );
+    } else {
+      Alert.alert(
+        elevated ? 'Host access granted' : 'Already joined',
+        elevated
+          ? "You've been given host access to this wedding."
+          : "You're already part of this wedding."
+      );
+    }
     router.replace('/select-wedding');
   }
 
@@ -113,7 +131,16 @@ export default function ProfileSetupScreen() {
       }
       if (cancelled) return;
       if (existing) {
-        await settleExistingMember(uid, pendingWeddingId, existing);
+        try {
+          await settleExistingMember(uid, pendingWeddingId, existing);
+        } catch {
+          // Last resort: the screen renders nothing but a spinner until
+          // `checking` clears, so any unexpected throw in here has to land
+          // somewhere the user can act.
+          if (cancelled) return;
+          Alert.alert('Connection problem', 'Could not finish opening this wedding. Please try again.');
+          router.replace(userWeddingIds.length > 0 ? '/select-wedding' : '/(auth)/invite');
+        }
         return;
       }
       setChecking(false);
