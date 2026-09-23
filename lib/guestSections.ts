@@ -96,12 +96,9 @@ export function buildGuestGroups(entries: readonly GuestEntry[], query: string):
     items: matched.filter((e) => e.partyRole === key).sort(byName),
   })).filter((g) => g.items.length > 0);
 
-  // A wedding predating party roles puts everyone in 'guest', leaving a single
-  // section headed "Everyone else" with nothing to be else than. Retitle so the
-  // legacy case looks deliberate rather than broken.
-  if (groups.length === 1 && groups[0].key === 'guest') {
-    return [{ ...groups[0], title: 'Guests' }];
-  }
+  // No special case for the legacy wedding where everyone is unmarked: the
+  // section is titled "Guests" either way, which reads correctly whether it
+  // stands alone or sits under Couple and Wedding party.
   return groups;
 }
 

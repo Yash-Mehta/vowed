@@ -65,16 +65,16 @@ check(
   'each section maps to its tile scale',
   `${groups[0].variant}/${groups[1].variant}/${groups[3].variant}` === 'large/medium/compact'
 );
-check('a member with no partyRole lands in "Everyone else"', groups[3].items[0].uid === 'rob');
-check('"Everyone else" keeps its title when other sections exist', groups[3].title === 'Everyone else');
+check('a member with no partyRole lands in the guests section', groups[3].items[0].uid === 'rob');
+check('the guests section is never titled "Everyone else"', groups[3].title === 'Guests');
 
 console.log('\nedge cases:');
 const legacyOnly = buildGuestGroups([toEntry(member('solo'))], '');
 check('empty sections are omitted entirely', legacyOnly.length === 1);
 check(
-  'a wedding with no party roles retitles to "Guests"',
+  'a wedding with no party roles reads as "Guests"',
   legacyOnly[0].title === 'Guests',
-  'otherwise it reads "Everyone else" with nothing to be else than'
+  'needs no special case now that the section is titled Guests throughout'
 );
 
 console.log('\nsearch:');

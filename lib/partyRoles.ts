@@ -35,7 +35,11 @@ export const PARTY_ROLE_SECTION_TITLES: Record<PartyRole, string> = {
   couple: 'Couple',
   bridalParty: 'Wedding party',
   family: 'Family',
-  guest: 'Everyone else',
+  // Not "Everyone else": at a wedding that reads as dismissive of the people
+  // who travelled to be there. "Guests" sits naturally beside "Wedding party"
+  // and "Family", which are the roles these people are being distinguished
+  // from — so nobody is defined by what they are not.
+  guest: 'Guests',
 };
 
 const VALID = new Set<string>(PARTY_ROLE_ORDER);
