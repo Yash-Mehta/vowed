@@ -13,7 +13,8 @@
 // thing standing between a malformed document and a render crash — Avatar
 // splits displayName, and would throw on undefined.
 
-import { toEntry, buildGuestGroups, chunk, GuestMember } from '../lib/guestSections';
+import { toEntry, buildGuestGroups, chunk, COLUMNS_BY_VARIANT, GuestMember } from '../lib/guestSections';
+import { PARTY_ROLE_ORDER, PARTY_ROLE_LABELS, PARTY_ROLE_SECTION_TITLES, toPartyRole } from '../lib/partyRoles';
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = '') {
@@ -87,6 +88,117 @@ console.log('\nrow chunking:');
 check('splits into rows with a partial last row', JSON.stringify(chunk([1, 2, 3, 4, 5], 2)) === '[[1,2],[3,4],[5]]');
 check('handles an empty list', chunk([], 3).length === 0);
 check('a zero column count does not hang', chunk([1, 2], 0).length === 1);
+
+console.log('\npartyRole normalisation against hostile values:');
+// Client-written, and firestore.rules constrains the field's presence but never
+// its value. The prototype-ish keys matter because VALID is a Set (no prototype
+// chain) but the label Record it guards is an ordinary object literal.
+const HOSTILE: ReadonlyArray<readonly [string, unknown]> = [
+  ['__proto__', '__proto__'],
+  ['constructor', 'constructor'],
+  ['toString', 'toString'],
+  ['a number', 0],
+  ['NaN', NaN],
+  ['null', null],
+  ['undefined', undefined],
+  ['an object', {}],
+  ['an array', ['couple']],
+  ['a capitalised role', 'Couple'],
+  ['a padded role', ' couple'],
+];
+for (const [label, value] of HOSTILE) {
+  const role = toPartyRole(value);
+  check(`${label} normalises to guest`, role === 'guest');
+  check(`${label} still yields a renderable label`, typeof PARTY_ROLE_LABELS[role] === 'string');
+}
+
+console.log('\nthe label maps themselves:');
+// This is why every read must go through toPartyRole. The Record is a plain
+// object literal, so a bare index reaches Object.prototype — labels['toString']
+// is a function, and guest/[uid].tsx calls .toUpperCase() on what it gets back.
+const bareLabels = PARTY_ROLE_LABELS as unknown as Record<string, unknown>;
+check(
+  'indexing the label map directly DOES reach Object.prototype',
+  typeof bareLabels['toString'] === 'function',
+  'which is why no read may use a bare cast'
+);
+check(
+  'every role toPartyRole can return has an OWN label',
+  PARTY_ROLE_ORDER.every((r) => Object.prototype.hasOwnProperty.call(PARTY_ROLE_LABELS, r))
+);
+check(
+  'every role toPartyRole can return has an OWN section title',
+  PARTY_ROLE_ORDER.every((r) => Object.prototype.hasOwnProperty.call(PARTY_ROLE_SECTION_TITLES, r))
+);
+check('no label is empty, so a badge cannot render as a blank pill',
+  PARTY_ROLE_ORDER.every((r) => PARTY_ROLE_LABELS[r].trim().length > 0));
+check('PARTY_ROLE_ORDER has no duplicates, so nobody is listed twice',
+  new Set(PARTY_ROLE_ORDER).size === PARTY_ROLE_ORDER.length);
+
+console.log('\nnames that render as nothing:');
+// trim() strips U+00A0 and U+FEFF but NOT U+200B and the other format
+// characters, so a name made only of those used to survive as "visually empty".
+const ZWSP = String.fromCharCode(0x200b);
+const NBSP = String.fromCharCode(0x00a0);
+const RLO = String.fromCharCode(0x202e);
+check('a whitespace-only name falls back to Guest', toEntry(member('a', { displayName: '   ' })).name === 'Guest');
+check('a non-breaking-space name falls back to Guest', toEntry(member('a', { displayName: NBSP })).name === 'Guest');
+check('a zero-width-space name falls back to Guest', toEntry(member('a', { displayName: ZWSP })).name === 'Guest');
+check('a right-to-left-override name falls back to Guest', toEntry(member('a', { displayName: RLO })).name === 'Guest');
+check('a real name is never mangled by the stripping', toEntry(member('a', { displayName: '  Ada Lovelace ' })).name === 'Ada Lovelace');
+check('an emoji-only name survives', toEntry(member('a', { displayName: '\u{1F389}' })).name === '\u{1F389}');
+
+console.log('\nrole normalisation (authorization, not display):');
+check('role host is preserved', toEntry(member('a', { role: 'host' })).role === 'host');
+check('an absent role reads as guest', toEntry(member('a')).role === 'guest');
+check('a malformed role never reads as elevated', toEntry(member('a', { role: 'HOST' })).role === 'guest');
+check('an object role never reads as elevated', toEntry(member('a', { role: {} })).role === 'guest');
+
+console.log('\ngrouping invariants:');
+const MIXED = [
+  member('u1', { displayName: 'Ada', partyRole: 'couple' }),
+  member('u2', { displayName: 'ada', partyRole: 'couple' }),
+  member('u0', { displayName: 'Ada', partyRole: 'couple' }),
+  member('u3', { displayName: 'Zoe', partyRole: 'bridalParty' }),
+  member('u4', { displayName: null, partyRole: 'family' }),
+  member('u5', { displayName: '   ' }),
+  member('u6', { displayName: 'Bob', partyRole: '__proto__' }),
+].map(toEntry);
+const mixedGroups = buildGuestGroups(MIXED, '');
+const flatItems = mixedGroups.flatMap((g) => g.items);
+check('grouping is lossless — every member lands in exactly one section',
+  flatItems.length === MIXED.length, `${MIXED.length} in, ${flatItems.length} out`);
+check('grouping never duplicates a member',
+  new Set(flatItems.map((e) => e.uid)).size === flatItems.length);
+// The original alphabetical check used distinct names, so byName's uid branch
+// never ran. Three people all sorting to "ada" is what forces it.
+check('equal searchKeys fall back to the uid tiebreaker',
+  mixedGroups[0].items.map((i) => i.uid).join(',') === 'u0,u1,u2');
+check('order does not depend on the order the snapshot arrived in',
+  JSON.stringify(buildGuestGroups([...MIXED].reverse(), '').flatMap((g) => g.items.map((i) => i.uid))) ===
+    JSON.stringify(flatItems.map((i) => i.uid)));
+const many = Array.from({ length: 2000 }, (_, i) =>
+  toEntry(member(`u${String(i).padStart(4, '0')}`, { displayName: `Guest ${i}` })));
+check('2000 members group without loss', buildGuestGroups(many, '').flatMap((g) => g.items).length === 2000);
+
+console.log('\nrow chunking invariants:');
+// Conservation is the point: a guest dropped by chunk() is a guest who does not
+// appear at the wedding, with nothing on screen to say so.
+const ROW_INPUT = Array.from({ length: 17 }, (_, i) => `u${i}`);
+for (const columns of [1, 2, 3, 4, 5, 17, 18]) {
+  const rows = chunk(ROW_INPUT, columns);
+  const flat = rows.flat();
+  check(`columns=${columns}: every member appears exactly once, in order`,
+    flat.length === ROW_INPUT.length && flat.every((u, i) => u === ROW_INPUT[i]));
+  check(`columns=${columns}: no row is empty or wider than the column count`,
+    rows.every((r) => r.length > 0 && r.length <= columns));
+}
+// `NaN < 1` is false, so the old guard was skipped and `i += NaN` never
+// advanced — chunk returned [[]] and a whole section vanished silently.
+check('a NaN column count does not silently empty the section',
+  chunk(ROW_INPUT, NaN).flat().length === ROW_INPUT.length);
+check('every declared variant maps to at least two columns',
+  Object.values(COLUMNS_BY_VARIANT).every((n) => Number.isInteger(n) && n >= 2));
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

@@ -3,12 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Avatar } from './Avatar';
 import { OptionsSheet, SheetOption } from './OptionsSheet';
 import { theme } from '../constants/theme';
-import { UserDoc } from '../lib/firestore';
-import { PartyRole, PARTY_ROLE_ORDER, PARTY_ROLE_LABELS, toPartyRole } from '../lib/partyRoles';
+import { GuestEntry } from '../lib/guestSections';
+import { PartyRole, PARTY_ROLE_ORDER, PARTY_ROLE_LABELS } from '../lib/partyRoles';
 
 interface Props {
   uid: string;
-  user: UserDoc;
+  // Already normalised by toEntry. Member docs are client-written and rules
+  // constrain only role/partyRole/isCouple, so a raw doc could carry a
+  // non-string displayName straight into Avatar's name.split(' ') and take
+  // down the host's manage tab — the screen used to remove that guest.
+  user: GuestEntry;
   currentUid?: string;
   onPromote?: (uid: string) => void;
   onDemote?: (uid: string) => void;
@@ -27,11 +31,11 @@ export function GuestRow({
 }: Props) {
   const isSelf = uid === currentUid;
   const [sheetOpen, setSheetOpen] = useState(false);
-  const partyRole = toPartyRole(user.partyRole);
+  const partyRole = user.partyRole;
   function confirmRemove() {
     Alert.alert(
       'Remove guest',
-      `Remove ${user.displayName} from the guest list?`,
+      `Remove ${user.name} from the guest list?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Remove', style: 'destructive', onPress: () => onRemove?.(uid) },
@@ -40,14 +44,14 @@ export function GuestRow({
   }
 
   function confirmPromote() {
-    Alert.alert('Make host', `Give ${user.displayName} host access?`, [
+    Alert.alert('Make host', `Give ${user.name} host access?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Make host', onPress: () => onPromote?.(uid) },
     ]);
   }
 
   function confirmDemote() {
-    Alert.alert('Remove host access', `Downgrade ${user.displayName} to guest?`, [
+    Alert.alert('Remove host access', `Downgrade ${user.name} to guest?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Downgrade', style: 'destructive', onPress: () => onDemote?.(uid) },
     ]);
@@ -78,10 +82,10 @@ export function GuestRow({
 
   return (
     <View style={styles.row}>
-      <Avatar uri={user.photoURL} name={user.displayName} size={40} />
+      <Avatar uri={user.photoURL} name={user.name} size={40} />
       <View style={styles.info}>
         <View style={styles.nameRow}>
-          <Text style={styles.name}>{user.displayName}</Text>
+          <Text style={styles.name}>{user.name}</Text>
           {user.role === 'host' && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>HOST</Text>
@@ -97,7 +101,7 @@ export function GuestRow({
             </View>
           )}
         </View>
-        <Text style={styles.blurb} numberOfLines={1}>{user.howTheyKnow}</Text>
+        <Text style={styles.blurb} numberOfLines={1}>{user.blurb}</Text>
       </View>
       <View style={styles.actions}>
         {onChangePartyRole && (
@@ -105,7 +109,7 @@ export function GuestRow({
             style={styles.roleBtn}
             onPress={() => setSheetOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={`Change role for ${user.displayName}`}
+            accessibilityLabel={`Change role for ${user.name}`}
             activeOpacity={0.7}>
             <Text style={styles.roleBtnText}>Role</Text>
           </TouchableOpacity>
@@ -115,7 +119,7 @@ export function GuestRow({
             style={styles.removeBtn}
             onPress={confirmRemove}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${user.displayName}`}
+            accessibilityLabel={`Remove ${user.name}`}
             activeOpacity={0.7}>
             <Text style={styles.removeBtnText}>✕</Text>
           </TouchableOpacity>

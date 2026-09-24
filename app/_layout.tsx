@@ -122,6 +122,19 @@ export default function RootLayout() {
     return unsub;
   }, []);
 
+  // router.replace() swaps ONLY the top stack entry — every screen below it
+  // survives. Under <Slot /> that was invisible: lower screens were unmounted
+  // and there was no back gesture. Under a native <Stack /> it meant the
+  // signed-out landing screen sat beneath the tabs, and select-wedding sat
+  // beneath Settings still holding its populated previews — reachable by
+  // Android back or an iOS edge-swipe, so a signed-out user could see the
+  // previous account's wedding list. Every guard redirect tears the stack
+  // down first.
+  const resetTo = (href: Parameters<typeof router.replace>[0]) => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(href);
+  };
+
   useEffect(() => {
     if (isLoading || !fontsLoaded) return;
     const inAuth = segments[0] === '(auth)';
@@ -140,25 +153,25 @@ export default function RootLayout() {
     const atRoot = (segments as string[]).length === 0;
 
     if (!firebaseUser && !inAuth && !onSignedOutOnboardingEntry) {
-      router.replace('/');
+      resetTo('/');
     } else if (firebaseUser) {
       if (weddingId) {
         // Party selected — route to tabs. Includes the bare landing route,
         // which is otherwise an unguarded gap: a signed-in user with a
         // wedding selected would sit on the Sign in / Create account screen.
         if (inAuth || inSelectWedding || atRoot) {
-          playEntryTransition(() => router.replace('/(tabs)/feed'));
+          playEntryTransition(() => resetTo('/(tabs)/feed'));
         }
       } else if (pendingWeddingId) {
         // Mid-join: have a pending wedding to set up profile for
         if (!inAuth && !inOnboarding) {
-          router.replace('/(auth)/profile-setup');
+          resetTo('/(auth)/profile-setup');
         } else if (
           inAuth &&
           segments[1] !== 'profile-setup' &&
           segments[1] !== 'invite'
         ) {
-          router.replace('/(auth)/profile-setup');
+          resetTo('/(auth)/profile-setup');
         }
       } else if (userWeddingIds.length > 0) {
         // Has weddings but no party selected — go to party selection.
@@ -175,14 +188,14 @@ export default function RootLayout() {
         // after the form is submitted.
         const onMidJoinScreen = segments[1] === 'invite';
         if (!inSelectWedding && !inSettings && !inOnboarding && !onMidJoinScreen) {
-          router.replace('/select-wedding');
+          resetTo('/select-wedding');
         }
       } else {
         // No weddings yet — needs to join via invite. Same reasoning as
         // above for why profile-setup is not excluded here.
         const onMidJoinScreen = segments[1] === 'invite';
         if (!inOnboarding && !onMidJoinScreen) {
-          router.replace('/(auth)/invite');
+          resetTo('/(auth)/invite');
         }
       }
     }
@@ -198,10 +211,24 @@ export default function RootLayout() {
           feed regardless of where you started. animation: 'none' is the
           default so the guard's replace() transitions still look the way they
           did under Slot; only the four genuinely pushed routes animate. */}
-      <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
-        <Stack.Screen name="guest/[uid]" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
+      {/* gestureEnabled defaults to true on iOS and animation:'none' does NOT
+          suppress it, so every root screen — the tabs, select-wedding, the auth
+          group — became edge-swipe-poppable. Off by default; on only for the
+          three routes where backing out is the point. compose stays off: a
+          stray swipe would discard a caption and up to ten attached photos. */}
+      <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
+        <Stack.Screen
+          name="guest/[uid]"
+          options={{ animation: 'slide_from_right', gestureEnabled: true }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{ animation: 'slide_from_right', gestureEnabled: true }}
+        />
+        <Stack.Screen
+          name="privacy"
+          options={{ animation: 'slide_from_right', gestureEnabled: true }}
+        />
         <Stack.Screen name="compose" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
       {showOverlay && (

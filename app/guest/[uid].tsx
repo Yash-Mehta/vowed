@@ -12,30 +12,52 @@ import { useLocalSearchParams } from 'expo-router';
 import { useGoBack } from '../../hooks/useGoBack';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { UserDoc, onSnapshotError } from '../../lib/firestore';
+import { onSnapshotError } from '../../lib/firestore';
+import { GuestEntry, toEntry } from '../../lib/guestSections';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
 import { ImageViewer } from '../../components/ImageViewer';
-import { PARTY_ROLE_LABELS, toPartyRole } from '../../lib/partyRoles';
+import { PARTY_ROLE_LABELS } from '../../lib/partyRoles';
 import { theme } from '../../constants/theme';
 
 export default function GuestProfileScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { weddingId } = useAuthStore();
-  const [user, setUser] = useState<UserDoc | null>(null);
+  const [user, setUser] = useState<GuestEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [photoOpen, setPhotoOpen] = useState(false);
   const goBack = useGoBack('/(tabs)/guests');
 
   useEffect(() => {
-    if (!uid || !weddingId) return;
+    // A bare return here left `loading` true forever — the same defect this
+    // branch fixed in (tabs)/guests.tsx. Reachable on a cold start onto this
+    // route before authStore.weddingId has hydrated: the redirect usually wins
+    // the race, but when it does not the screen spins with nothing behind it.
+    if (!uid || !weddingId) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     const unsub = onSnapshot(doc(db, 'weddings', weddingId, 'members', uid), (snap) => {
-      setUser(snap.exists() ? (snap.data() as UserDoc) : null);
+      // Normalised, never cast. `as UserDoc` was a compile-time assertion over
+      // a client-written document: rules constrain only role/partyRole/
+      // isCouple, so a member could drop their own displayName and every other
+      // guest's app would throw inside Avatar's name.split(' '). There is no
+      // error boundary, so that unmounts the React root — a blank screen until
+      // the app is force-quit.
+      setUser(snap.exists() ? toEntry({ uid, ...snap.data() }) : null);
       setLoading(false);
     }, onSnapshotError);
     return unsub;
   }, [uid, weddingId]);
+
+  // The Modal no longer closes itself when the photo disappears, so the parent
+  // does it — otherwise the viewer would sit open on the "no longer available"
+  // message after a live profile update removed the picture.
+  useEffect(() => {
+    if (!user?.photoURL) setPhotoOpen(false);
+  }, [user?.photoURL]);
 
   if (loading) {
     return (
@@ -55,7 +77,7 @@ export default function GuestProfileScreen() {
     );
   }
 
-  const partyRole = toPartyRole(user.partyRole);
+  const partyRole = user.partyRole;
 
   return (
     <ScreenWrapper>
@@ -72,11 +94,16 @@ export default function GuestProfileScreen() {
           <Pressable
             onPress={() => setPhotoOpen(true)}
             disabled={!user.photoURL}
+            // `disabled` only stamps accessibilityState.disabled; it does not
+            // remove the node, so without this a screen reader stopped on the
+            // initials circle and announced it as a dimmed button that does
+            // nothing.
+            accessible={!!user.photoURL}
             accessibilityRole={user.photoURL ? 'imagebutton' : undefined}
-            accessibilityLabel={user.photoURL ? `View ${user.displayName}'s photo` : undefined}>
-            <Avatar uri={user.photoURL} name={user.displayName} size={100} ringed />
+            accessibilityLabel={user.photoURL ? `View ${user.name}'s photo` : undefined}>
+            <Avatar uri={user.photoURL} name={user.name} size={100} ringed />
           </Pressable>
-          <Text style={styles.name}>{user.displayName}</Text>
+          <Text style={styles.name}>{user.name}</Text>
 
           {/* Two independent axes: role is authorization, partyRole is where
               they sit in the wedding. Someone can be both, so these are
@@ -100,17 +127,17 @@ export default function GuestProfileScreen() {
           )}
         </View>
 
-        {user.howTheyKnow ? (
+        {user.blurb ? (
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>HOW THEY KNOW THE COUPLE</Text>
-            <Text style={styles.cardBody}>{user.howTheyKnow}</Text>
+            <Text style={styles.cardBody}>{user.blurb}</Text>
           </View>
         ) : null}
       </ScrollView>
 
       <ImageViewer
         uri={user.photoURL}
-        name={user.displayName}
+        name={user.name}
         visible={photoOpen}
         onClose={() => setPhotoOpen(false)}
       />

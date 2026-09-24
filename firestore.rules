@@ -84,7 +84,8 @@ service cloud.firestore {
         // elevation goes through the claimHostRole callable, which validates
         // the invite code server-side.
         //
-        // partyRole/isCouple are display-only, but they decide who is shown to
+        // partyRole is display-only (and isCouple is retired, still blocked
+        // here so a client cannot resurrect it), but it decides who is shown to
         // every guest AS the couple — so a self-write is an impersonation, not
         // a preference, and they are server-controlled in the same way. Member
         // docs are created with a non-merging setDoc, so create is a fully

@@ -29,12 +29,21 @@ const argOf = (flag: string) => {
 const ONE_WEDDING = argOf('--wedding');
 const ONE_UID = argOf('--uid');
 
+// Given only one half of the pair, the single-doc guard below fails and control
+// falls through to the full scan — so a typo asking to stamp ONE person would
+// instead stamp every wedding's owner across production.
+if ((ONE_WEDDING === undefined) !== (ONE_UID === undefined)) {
+  console.error('--wedding and --uid must be given together');
+  process.exit(1);
+}
+
 admin.initializeApp({
   credential: admin.credential.cert(path.join(process.cwd(), 'serviceAccountKey.json')),
 });
 const db = admin.firestore();
 
-const COUPLE = { partyRole: 'couple' as const, isCouple: true };
+// partyRole alone. isCouple is retired — see lib/firestore.ts.
+const COUPLE = { partyRole: 'couple' as const };
 
 type Planned = { ref: FirebaseFirestore.DocumentReference; who: string; why: string };
 
@@ -78,7 +87,7 @@ async function run() {
     if (!owner) {
       // Real: leaveWedding and the host's remove control both delete member docs.
       skipped.push(`${short}… — owner is not a member`);
-    } else if (owner.data().isCouple !== true || owner.data().partyRole !== 'couple') {
+    } else if (owner.data().partyRole !== 'couple') {
       planned.push({ ref: owner.ref, who: owner.data().displayName ?? ownerUid, why: 'ownerUid' });
     }
 
@@ -92,12 +101,19 @@ async function run() {
 
     if (candidates.length === 1) {
       const c = candidates[0];
-      if (c.data().isCouple !== true) {
-        if (PARTNERS) {
-          planned.push({ ref: c.ref, who: c.data().displayName ?? c.id, why: 'name match' });
-        } else {
-          ambiguous.push(`${short}… — ${c.data().displayName ?? c.id} looks like the partner (re-run with --partners)`);
-        }
+      if (c.data().partyRole !== 'couple') {
+        // Propose, never apply. displayName is client-written and rules do not
+        // constrain it, while person1First/person2First are readable by every
+        // member — so a guest can rename themselves to a couple's first name
+        // and be stamped as the couple by the Admin SDK, bypassing the very
+        // rule this feature added. The single-candidate check fails open in
+        // exactly the case that matters: the real partner has not joined yet.
+        const who = c.data().displayName ?? c.id;
+        ambiguous.push(
+          PARTNERS
+            ? `${short}… — ${who} looks like the partner; apply with:\n      npx tsx scripts/backfill-party-roles.ts --write --wedding ${w.id} --uid ${c.id}`
+            : `${short}… — ${who} looks like the partner (re-run with --partners to get the exact command)`
+        );
       }
     } else if (candidates.length > 1) {
       // Two guests called Olivia is not hypothetical.

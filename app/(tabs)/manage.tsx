@@ -39,6 +39,7 @@ import { useWeddingStore } from '../../store/weddingStore';
 import { configFromDoc } from '../../lib/weddingConfig';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { GuestRow } from '../../components/GuestRow';
+import { GuestEntry, toEntry } from '../../lib/guestSections';
 import { inviteMessage, InviteKind } from '../../lib/invites';
 import { theme } from '../../constants/theme';
 
@@ -71,7 +72,9 @@ function formatDayShort(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-interface GuestItem extends UserDoc { uid: string }
+// toEntry is the single trust boundary for member documents; see
+// lib/guestSections.ts. The guest list screen already went through it.
+type GuestItem = GuestEntry;
 interface ScheduleItem {
   id: string;
   title: string;
@@ -211,7 +214,7 @@ export default function ManageScreen() {
   useEffect(() => {
     if (!weddingId) return;
     const unsub = onSnapshot(membersCol(weddingId), (snap) => {
-      setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
+      setGuests(snap.docs.map((d) => toEntry({ uid: d.id, ...d.data() })));
       setLoadingGuests(false);
     }, onSnapshotError);
     return unsub;

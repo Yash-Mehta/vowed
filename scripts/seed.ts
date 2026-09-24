@@ -154,7 +154,6 @@ async function seed() {
     // The creator is one half of the couple — confirm.tsx stamps this on real
     // weddings, so the seed mirrors it.
     partyRole: 'couple',
-    isCouple: true,
     fcmToken: null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });

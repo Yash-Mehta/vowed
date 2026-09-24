@@ -24,29 +24,43 @@ export function ImageViewer({ uri, name, visible, onClose }: Props) {
   const { top } = useSafeAreaInsets();
   const [failed, setFailed] = useState(false);
 
-  // Reopening after a failure, or on a different photo, must start clean.
-  useEffect(() => {
-    if (visible) setFailed(false);
-  }, [visible, uri]);
+  // No `if (visible)` guard: leaving `failed` set on close meant the first
+  // frame of a reopen still rendered the error, and with a fade-in that stale
+  // message was on screen for the whole transition before the image swapped
+  // in. Clearing on close runs before the reopen render, so there is no flash.
+  useEffect(() => setFailed(false), [visible, uri]);
 
   return (
     <Modal
-      visible={visible && !!uri}
+      // Visibility is the parent's alone. `visible && !!uri` desynced: if the
+      // photo went null on a snapshot while the viewer was open, the Modal
+      // closed but the parent's state stayed true — and a later snapshot
+      // restoring a photo reopened the viewer with no user action. The missing
+      // photo is handled in the content below instead.
+      visible={visible}
       transparent
       animationType="fade"
       statusBarTranslucent
       // Android's hardware back button, which otherwise leaves the modal stuck.
       onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close photo">
-        {failed ? (
+      {/* accessible={false}: a Pressable is accessible by default, and a
+          full-screen one absorbs its descendants — VoiceOver announced only
+          "Close photo" and never reached the image's label or the failure
+          message. The X button below carries the labelled dismiss affordance. */}
+      <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
+        {!uri || failed ? (
           <Text style={styles.failed}>This photo is no longer available</Text>
         ) : (
           <Image
-            source={{ uri: uri ?? undefined }}
+            source={{ uri }}
             onError={() => setFailed(true)}
             resizeMode="contain"
+            accessible
+            accessibilityRole="image"
             accessibilityLabel={`${name}'s photo`}
-            style={{ width, height: height * 0.8 }}
+            // Leaves room for the close button above and matches the square
+            // avatars this shows, which fit by width on every phone.
+            style={{ width, height: height - (top + 56) * 2 }}
           />
         )}
       </Pressable>

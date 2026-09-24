@@ -42,7 +42,12 @@ export interface UserDoc {
   // True for the couple themselves. Set by confirm.tsx for the wedding's
   // creator and by a host for their partner — deliberately NOT derived from
   // `role === 'host'`, because an admin who is not the couple is a real case.
-  isCouple?: boolean;
+  // isCouple is RETIRED. It was written at creation but never read anywhere,
+  // and the host's role picker writes partyRole alone — so demoting the
+  // creator left isCouple: true behind for the backfill script to re-stamp,
+  // silently reverting a deliberate decision. Couple status is now exactly
+  // `partyRole === 'couple'`, one field with one writer. Legacy documents may
+  // still carry it; firestore.rules keeps blocking client writes to it.
   // Notification preferences — absent means enabled; announcements are always on
   notifyPosts?: boolean;
   notifyComments?: boolean;

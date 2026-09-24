@@ -30,6 +30,19 @@ export default function InviteScreen() {
   const [preview, setPreview] = useState<CodeIndexDoc['preview'] | null>(null);
   const [pendingResult, setPendingResult] = useState<{ weddingId: string; role: 'guest' | 'host' } | null>(null);
   const router = useRouter();
+
+  // replace() here left [select-wedding, select-wedding]: this screen is
+  // pushed FROM select-wedding, so replacing the top made a second copy and
+  // back appeared to do nothing. dismissTo returns to the existing entry
+  // instead — but this screen is ALSO the guard's landing route for a user
+  // with no weddings yet, and in that case there is nothing to dismiss to.
+  function backToSelectWedding() {
+    try {
+      router.dismissTo('/select-wedding');
+    } catch {
+      router.replace('/select-wedding');
+    }
+  }
   const { setPendingRole, setPendingWeddingId, setPendingCode, userWeddingIds, setUserWeddingIds } = useAuthStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const previewAnim = useRef(new Animated.Value(0)).current;
@@ -84,7 +97,7 @@ export default function InviteScreen() {
               await claimHostRole(result.weddingId, code.trim().toUpperCase());
               setLoading(false);
               Alert.alert('Host access granted', "You've been given host access to this wedding.");
-              router.replace('/select-wedding');
+              backToSelectWedding();
             } catch (e: any) {
               setLoading(false);
               Alert.alert('Error', e?.message ?? 'Could not update your role. Please try again.');
@@ -93,7 +106,7 @@ export default function InviteScreen() {
           }
           setLoading(false);
           Alert.alert('Already joined', "You're already part of this wedding.");
-          router.replace('/select-wedding');
+          backToSelectWedding();
           return;
         }
       } catch (e: any) {

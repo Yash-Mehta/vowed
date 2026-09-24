@@ -115,7 +115,7 @@ export default function ConfirmScreen() {
         setGlobalProfile({ displayName, photoURL, phoneNumber: globalProfile?.phoneNumber ?? null });
       }
 
-      // Register host as first member. partyRole/isCouple mark them as the
+      // Register host as first member. partyRole marks them as the
       // couple: this is the one point where the couple is known without a
       // heuristic, since whoever creates the wedding is by definition one half
       // of it. Their partner joins later with an invite code and is
@@ -127,7 +127,6 @@ export default function ConfirmScreen() {
         photoURL,
         role: 'host',
         partyRole: 'couple',
-        isCouple: true,
       });
 
       await addWeddingToIndex(uid, weddingId);
@@ -142,7 +141,6 @@ export default function ConfirmScreen() {
         photoURL,
         role: 'host',
         partyRole: 'couple',
-        isCouple: true,
         fcmToken: null,
         createdAt: null,
       });
