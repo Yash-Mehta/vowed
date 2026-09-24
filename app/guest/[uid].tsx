@@ -89,20 +89,31 @@ export default function GuestProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.hero}>
-          {/* Only tappable when there is a photo — opening a viewer on the
-              initials placeholder would show a blank screen. */}
-          <Pressable
-            onPress={() => setPhotoOpen(true)}
-            disabled={!user.photoURL}
-            // `disabled` only stamps accessibilityState.disabled; it does not
-            // remove the node, so without this a screen reader stopped on the
-            // initials circle and announced it as a dimmed button that does
-            // nothing.
-            accessible={!!user.photoURL}
-            accessibilityRole={user.photoURL ? 'imagebutton' : undefined}
-            accessibilityLabel={user.photoURL ? `View ${user.name}'s photo` : undefined}>
-            <Avatar uri={user.photoURL} name={user.name} size={100} ringed />
-          </Pressable>
+          {/* The single badge sits OUTSIDE the Pressable: a Pressable is one
+              accessibility element and would swallow the label. The guest
+              list's tile carries "Single" in its own aggregate label instead;
+              here there is no aggregate, so this one announces itself. */}
+          <View>
+            {/* Only tappable when there is a photo — opening a viewer on the
+                initials placeholder would show a blank screen. */}
+            <Pressable
+              onPress={() => setPhotoOpen(true)}
+              disabled={!user.photoURL}
+              // `disabled` only stamps accessibilityState.disabled; it does
+              // not remove the node, so without this a screen reader stopped
+              // on the initials circle and announced it as a dimmed button
+              // that does nothing.
+              accessible={!!user.photoURL}
+              accessibilityRole={user.photoURL ? 'imagebutton' : undefined}
+              accessibilityLabel={user.photoURL ? `View ${user.name}'s photo` : undefined}>
+              <Avatar uri={user.photoURL} name={user.name} size={100} ringed />
+            </Pressable>
+            {user.isSingle && (
+              <View style={styles.singleBadge} accessible accessibilityLabel="Single">
+                <Text style={styles.singleBadgeText}>S</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.name}>{user.name}</Text>
 
           {/* Two independent axes: role is authorization, partyRole is where
@@ -156,6 +167,29 @@ const styles = StyleSheet.create({
     color: theme.colors.ink,
     marginTop: 14,
     textAlign: 'center',
+  },
+  // Mirrors components/guests/GuestTile.tsx so the mark reads as the same
+  // thing in both places, sized up for the hero avatar. The ring colour
+  // matches this screen's background, which is what the tile does with its
+  // own surface.
+  singleBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.colors.gold,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.bg,
+  },
+  singleBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.bg,
+    fontFamily: theme.fonts.sans,
   },
   badges: {
     flexDirection: 'row',
