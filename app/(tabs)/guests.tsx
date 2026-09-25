@@ -1,34 +1,92 @@
-import { useEffect, useState } from 'react';
-import { FlatList, TouchableOpacity, Text, View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import {
+  SectionList,
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  PixelRatio,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { membersCol, UserDoc, onSnapshotError } from '../../lib/firestore';
+import { membersCol, onSnapshotError } from '../../lib/firestore';
+import {
+  GuestEntry,
+  GuestMember,
+  COLUMNS_BY_VARIANT,
+  buildGuestGroups,
+  chunk,
+  toEntry,
+} from '../../lib/guestSections';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
-import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
+import { GuestTile } from '../../components/guests/GuestTile';
+import { GuestSectionHeader } from '../../components/guests/GuestSectionHeader';
+import { GuestSearchField } from '../../components/guests/GuestSearchField';
 import { theme } from '../../constants/theme';
 
-interface GuestItem extends UserDoc {
-  uid: string;
-}
-
-const CARD_WIDTH = (Dimensions.get('window').width - 12 * 2 - 10) / 2;
+const H_PAD = theme.space.l;
+const ROW_GAP: Record<string, number> = { large: theme.space.xl, medium: theme.space.l, compact: theme.space.m };
 
 export default function GuestsScreen() {
-  const [guests, setGuests] = useState<GuestItem[]>([]);
+  const [members, setMembers] = useState<GuestEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const { weddingId } = useAuthStore();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+
+  // React 19 — the input stays responsive while filtering runs at lower
+  // priority, with no debounce timer to own or clean up.
+  const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
-    if (!weddingId) return;
-    const unsub = onSnapshot(membersCol(weddingId), (snap) => {
-      setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
+    // Previously an early return here left `loading` true forever, so a signed
+    // in user with no wedding selected saw an endless spinner.
+    if (!weddingId) {
+      setMembers([]);
       setLoading(false);
-    }, onSnapshotError);
+      return;
+    }
+    const unsub = onSnapshot(
+      membersCol(weddingId),
+      (snap) => {
+        setMembers(snap.docs.map((d) => toEntry({ uid: d.id, ...d.data() } as GuestMember)));
+        setLoading(false);
+      },
+      onSnapshotError
+    );
     return unsub;
   }, [weddingId]);
+
+  const groups = useMemo(() => buildGuestGroups(members, deferredQuery), [members, deferredQuery]);
+
+  const sections = useMemo(
+    () =>
+      groups.map((group) => {
+        const base = COLUMNS_BY_VARIANT[group.variant];
+        // At large accessibility text sizes a fixed column count crushes the
+        // names, so drop one column rather than letting them wrap to nothing.
+        // The couple stays at two — a single full-width tile would read as a
+        // different screen.
+        const columns =
+          group.variant === 'large' || PixelRatio.getFontScale() <= 1.35 ? base : Math.max(2, base - 1);
+        const gap = ROW_GAP[group.variant];
+        const tileWidth = (width - H_PAD * 2 - gap * (columns - 1)) / columns;
+        return { ...group, columns, gap, tileWidth, data: chunk(group.items, columns) };
+      }),
+    [groups, width]
+  );
+
+  // One stable callback for every tile — a fresh arrow per item would defeat
+  // the memo on GuestTile.
+  const onSelect = useCallback((uid: string) => router.push(`/guest/${uid}`), [router]);
+
+  const total = members.length;
+  const searching = deferredQuery.trim().length > 0;
 
   if (loading) {
     return (
@@ -40,116 +98,83 @@ export default function GuestsScreen() {
 
   return (
     <ScreenWrapper>
-      <FlatList
-        data={guests}
-        keyExtractor={(g) => g.uid}
-        numColumns={2}
+      <SectionList
+        sections={sections}
+        keyExtractor={(row) => row.map((entry) => entry.uid).join('|')}
+        stickySectionHeadersEnabled
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={6}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={
-          <View style={styles.headerWrap}>
-            <Text style={styles.eyebrow}>THE WEDDING PARTY</Text>
-            <Text style={styles.header}>Guests</Text>
-            <Text style={styles.sub}>{guests.length} attending</Text>
+          <View style={styles.header}>
+            {/* No "Guests" title: the tab bar already says Guests, and dropping
+                it lets the couple's names be the largest type on the page. */}
+            <Text style={styles.eyebrow}>
+              THE GUEST LIST{total > 0 ? ` · ${total}` : ''}
+            </Text>
+            <View style={styles.searchWrap}>
+              <GuestSearchField value={query} onChange={setQuery} />
+            </View>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => router.push(`/guest/${item.uid}`)}
-            activeOpacity={0.8}>
-            <View style={styles.avatarWrap}>
-              <Avatar uri={item.photoURL} name={item.displayName} size={64} />
-              {item.isSingle && (
-                <View style={styles.singleBadge}>
-                  <Text style={styles.singleBadgeText}>S</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.name} numberOfLines={1}>
-              {item.displayName}
-            </Text>
-            <Text style={styles.blurb} numberOfLines={2}>
-              {item.howTheyKnow}
-            </Text>
-          </TouchableOpacity>
+        renderSectionHeader={({ section }) => (
+          <GuestSectionHeader
+            title={section.title}
+            count={section.items.length}
+            centred={section.key === 'couple'}
+          />
+        )}
+        renderItem={({ item: row, section }) => (
+          <View style={[styles.row, { gap: section.gap, marginBottom: section.gap }]}>
+            {row.map((entry) => (
+              <GuestTile
+                key={entry.uid}
+                uid={entry.uid}
+                name={entry.name}
+                photoURL={entry.photoURL}
+                blurb={entry.blurb}
+                isSingle={entry.isSingle}
+                variant={section.variant}
+                width={section.tileWidth}
+                sectionTitle={section.title}
+                onSelect={onSelect}
+              />
+            ))}
+          </View>
         )}
         ListEmptyComponent={
-          <EmptyState
-            title="No guests yet"
-            subtitle="Guests will appear here once they join"
-          />
+          searching ? (
+            <EmptyState title="No one by that name" subtitle={`No guests match "${deferredQuery.trim()}"`} />
+          ) : (
+            <EmptyState title="No guests yet" subtitle="Guests will appear here once they join" />
+          )
         }
-        contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
-        columnWrapperStyle={{ gap: 10 }}
+        // EmptyState is flex: 1, which collapses to zero height inside a
+        // content container that isn't allowed to grow.
+        contentContainerStyle={[
+          styles.content,
+          sections.length === 0 && styles.contentEmpty,
+        ]}
       />
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  headerWrap: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 12 },
+  content: { paddingHorizontal: H_PAD, paddingBottom: 100 },
+  contentEmpty: { flexGrow: 1 },
+  header: { paddingTop: theme.space.s },
   eyebrow: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2.2,
+    ...theme.type.eyebrow,
     color: theme.colors.gold,
-    fontFamily: theme.fonts.sans,
-    marginBottom: 4,
-  },
-  header: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: theme.colors.ink,
-    fontFamily: theme.fonts.serif,
-  },
-  sub: { fontSize: 12, color: theme.colors.ink3, marginTop: 2, fontFamily: theme.fonts.sans },
-  card: {
-    width: CARD_WIDTH,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radii.lg,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 0.5,
-    borderColor: theme.colors.line,
-    ...theme.shadows.s1,
-  },
-  name: {
     fontWeight: '600',
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-    color: theme.colors.ink,
     fontFamily: theme.fonts.sans,
   },
-  blurb: {
-    fontSize: 12,
-    color: theme.colors.ink3,
-    marginTop: 4,
-    textAlign: 'center',
-    lineHeight: 16,
-    fontFamily: theme.fonts.sans,
-  },
-  avatarWrap: {
-    position: 'relative',
-  },
-  singleBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#E8B84B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: theme.colors.card,
-  },
-  singleBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: theme.colors.card,
-    fontFamily: theme.fonts.sans,
-  },
+  searchWrap: { marginTop: theme.space.l },
+  // stretch so tiles in a row match the tallest and their bottoms stay flush
+  // when a name wraps at large text sizes.
+  row: { flexDirection: 'row', alignItems: 'stretch' },
 });

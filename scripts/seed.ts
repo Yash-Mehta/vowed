@@ -20,13 +20,16 @@ function ts(iso: string) {
 }
 
 const GUESTS = [
-  { email: 'sophia.lane@example.com',   displayName: 'Sophia Lane',    howTheyKnow: "Olivia's maid of honour",    avatar: 'https://randomuser.me/api/portraits/women/44.jpg', isSingle: true  },
-  { email: 'ethan.brooks@example.com',  displayName: 'Ethan Brooks',   howTheyKnow: "James's best man",           avatar: 'https://randomuser.me/api/portraits/men/32.jpg',   isSingle: false },
-  { email: 'maya.patel@example.com',    displayName: 'Maya Patel',     howTheyKnow: "Olivia's college roommate",  avatar: 'https://randomuser.me/api/portraits/women/68.jpg', isSingle: true  },
-  { email: 'lucas.wright@example.com',  displayName: 'Lucas Wright',   howTheyKnow: "James's childhood friend",   avatar: 'https://randomuser.me/api/portraits/men/55.jpg',   isSingle: false },
-  { email: 'chloe.morgan@example.com',  displayName: 'Chloe Morgan',   howTheyKnow: "Olivia's sister",            avatar: 'https://randomuser.me/api/portraits/women/21.jpg', isSingle: false },
+  // partyRole drives the guest-list sections. Noah is deliberately left without
+  // one so the "absent means guest" path is exercised by the seed rather than
+  // only in theory.
+  { email: 'sophia.lane@example.com',   displayName: 'Sophia Lane',    howTheyKnow: "Olivia's maid of honour",    avatar: 'https://randomuser.me/api/portraits/women/44.jpg', isSingle: true,  partyRole: 'bridalParty' },
+  { email: 'ethan.brooks@example.com',  displayName: 'Ethan Brooks',   howTheyKnow: "James's best man",           avatar: 'https://randomuser.me/api/portraits/men/32.jpg',   isSingle: false, partyRole: 'bridalParty' },
+  { email: 'maya.patel@example.com',    displayName: 'Maya Patel',     howTheyKnow: "Olivia's college roommate",  avatar: 'https://randomuser.me/api/portraits/women/68.jpg', isSingle: true,  partyRole: 'bridalParty' },
+  { email: 'lucas.wright@example.com',  displayName: 'Lucas Wright',   howTheyKnow: "James's childhood friend",   avatar: 'https://randomuser.me/api/portraits/men/55.jpg',   isSingle: false, partyRole: 'guest' },
+  { email: 'chloe.morgan@example.com',  displayName: 'Chloe Morgan',   howTheyKnow: "Olivia's sister",            avatar: 'https://randomuser.me/api/portraits/women/21.jpg', isSingle: false, partyRole: 'family' },
   { email: 'noah.davis@example.com',    displayName: 'Noah Davis',     howTheyKnow: "Work colleague of James's",  avatar: 'https://randomuser.me/api/portraits/men/76.jpg',   isSingle: true  },
-];
+] as const;
 
 const HOST = {
   email: 'james.carter@example.com',
@@ -148,6 +151,9 @@ async function seed() {
     photoURL: HOST.avatar,
     howTheyKnow: HOST.howTheyKnow,
     role: 'host',
+    // The creator is one half of the couple — confirm.tsx stamps this on real
+    // weddings, so the seed mirrors it.
+    partyRole: 'couple',
     fcmToken: null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -165,6 +171,8 @@ async function seed() {
       howTheyKnow: g.howTheyKnow,
       role: 'guest',
       isSingle: g.isSingle,
+      // Absent for guests with no partyRole, matching how real docs look.
+      ...('partyRole' in g ? { partyRole: g.partyRole } : {}),
       fcmToken: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });

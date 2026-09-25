@@ -31,7 +31,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage } from '../../lib/firebase';
-import { UserDoc, membersCol, scheduleCol, onSnapshotError } from '../../lib/firestore';
+import { UserDoc, PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
 import { WeddingConfig } from '../../lib/weddingConfig';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
@@ -39,6 +39,7 @@ import { useWeddingStore } from '../../store/weddingStore';
 import { configFromDoc } from '../../lib/weddingConfig';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { GuestRow } from '../../components/GuestRow';
+import { GuestEntry, toEntry } from '../../lib/guestSections';
 import { inviteMessage, InviteKind } from '../../lib/invites';
 import { theme } from '../../constants/theme';
 
@@ -71,7 +72,9 @@ function formatDayShort(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-interface GuestItem extends UserDoc { uid: string }
+// toEntry is the single trust boundary for member documents; see
+// lib/guestSections.ts. The guest list screen already went through it.
+type GuestItem = GuestEntry;
 interface ScheduleItem {
   id: string;
   title: string;
@@ -211,7 +214,7 @@ export default function ManageScreen() {
   useEffect(() => {
     if (!weddingId) return;
     const unsub = onSnapshot(membersCol(weddingId), (snap) => {
-      setGuests(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as GuestItem)));
+      setGuests(snap.docs.map((d) => toEntry({ uid: d.id, ...d.data() })));
       setLoadingGuests(false);
     }, onSnapshotError);
     return unsub;
@@ -241,6 +244,19 @@ export default function ManageScreen() {
     if (!weddingId) return;
     try {
       await updateDoc(doc(db, 'weddings', weddingId, 'members', uid), { role: 'guest' });
+    } catch {
+      Alert.alert('Error', 'Could not update role.');
+    }
+  }
+  // Separate write from handlePromote/handleDemote on purpose: never send
+  // `role` and `partyRole` in one updateDoc. Both would pass the isHost arm,
+  // but a mixed diff muddies the audit trail and any later rule refinement.
+  // No optimistic state — the guest list is an onSnapshot subscription, so the
+  // write round-trips into the UI on its own.
+  async function handleChangePartyRole(uid: string, partyRole: PartyRole) {
+    if (!weddingId) return;
+    try {
+      await updateMember(weddingId, uid, { partyRole });
     } catch {
       Alert.alert('Error', 'Could not update role.');
     }
@@ -407,7 +423,15 @@ export default function ManageScreen() {
             keyExtractor={(g) => g.uid}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <GuestRow uid={item.uid} user={item} currentUid={firebaseUser?.uid} onPromote={handlePromote} onDemote={handleDemote} onRemove={handleRemove} />
+              <GuestRow
+                uid={item.uid}
+                user={item}
+                currentUid={firebaseUser?.uid}
+                onPromote={handlePromote}
+                onDemote={handleDemote}
+                onRemove={handleRemove}
+                onChangePartyRole={handleChangePartyRole}
+              />
             )}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={<Text style={styles.empty}>No guests yet</Text>}

@@ -1,29 +1,63 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+} from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useGoBack } from '../../hooks/useGoBack';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { UserDoc, onSnapshotError } from '../../lib/firestore';
+import { onSnapshotError } from '../../lib/firestore';
+import { GuestEntry, toEntry } from '../../lib/guestSections';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
+import { ImageViewer } from '../../components/ImageViewer';
+import { PARTY_ROLE_LABELS } from '../../lib/partyRoles';
 import { theme } from '../../constants/theme';
 
 export default function GuestProfileScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { weddingId } = useAuthStore();
-  const [user, setUser] = useState<UserDoc | null>(null);
+  const [user, setUser] = useState<GuestEntry | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const goBack = useGoBack('/(tabs)/guests');
 
   useEffect(() => {
-    if (!uid || !weddingId) return;
+    // A bare return here left `loading` true forever — the same defect this
+    // branch fixed in (tabs)/guests.tsx. Reachable on a cold start onto this
+    // route before authStore.weddingId has hydrated: the redirect usually wins
+    // the race, but when it does not the screen spins with nothing behind it.
+    if (!uid || !weddingId) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     const unsub = onSnapshot(doc(db, 'weddings', weddingId, 'members', uid), (snap) => {
-      setUser(snap.exists() ? (snap.data() as UserDoc) : null);
+      // Normalised, never cast. `as UserDoc` was a compile-time assertion over
+      // a client-written document: rules constrain only role/partyRole/
+      // isCouple, so a member could drop their own displayName and every other
+      // guest's app would throw inside Avatar's name.split(' '). There is no
+      // error boundary, so that unmounts the React root — a blank screen until
+      // the app is force-quit.
+      setUser(snap.exists() ? toEntry({ uid, ...snap.data() }) : null);
       setLoading(false);
     }, onSnapshotError);
     return unsub;
   }, [uid, weddingId]);
+
+  // The Modal no longer closes itself when the photo disappears, so the parent
+  // does it — otherwise the viewer would sit open on the "no longer available"
+  // message after a live profile update removed the picture.
+  useEffect(() => {
+    if (!user?.photoURL) setPhotoOpen(false);
+  }, [user?.photoURL]);
 
   if (loading) {
     return (
@@ -43,32 +77,81 @@ export default function GuestProfileScreen() {
     );
   }
 
+  const partyRole = user.partyRole;
+
   return (
     <ScreenWrapper>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.back} onPress={goBack} activeOpacity={0.7}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
         <View style={styles.hero}>
-          <Avatar uri={user.photoURL} name={user.displayName} size={100} ringed />
-          <Text style={styles.name}>{user.displayName}</Text>
-          {user.role === 'host' && (
-            <View style={styles.hostBadge}>
-              <Text style={styles.hostBadgeText}>HOST</Text>
+          {/* The single badge sits OUTSIDE the Pressable: a Pressable is one
+              accessibility element and would swallow the label. The guest
+              list's tile carries "Single" in its own aggregate label instead;
+              here there is no aggregate, so this one announces itself. */}
+          <View>
+            {/* Only tappable when there is a photo — opening a viewer on the
+                initials placeholder would show a blank screen. */}
+            <Pressable
+              onPress={() => setPhotoOpen(true)}
+              disabled={!user.photoURL}
+              // `disabled` only stamps accessibilityState.disabled; it does
+              // not remove the node, so without this a screen reader stopped
+              // on the initials circle and announced it as a dimmed button
+              // that does nothing.
+              accessible={!!user.photoURL}
+              accessibilityRole={user.photoURL ? 'imagebutton' : undefined}
+              accessibilityLabel={user.photoURL ? `View ${user.name}'s photo` : undefined}>
+              <Avatar uri={user.photoURL} name={user.name} size={100} ringed />
+            </Pressable>
+            {user.isSingle && (
+              <View style={styles.singleBadge} accessible accessibilityLabel="Single">
+                <Text style={styles.singleBadgeText}>S</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.name}>{user.name}</Text>
+
+          {/* Two independent axes: role is authorization, partyRole is where
+              they sit in the wedding. Someone can be both, so these are
+              separate pills rather than one. 'guest' is the unmarked default
+              and gets no pill — a badge on everyone distinguishes nobody. */}
+          {(user.role === 'host' || partyRole !== 'guest') && (
+            <View style={styles.badges}>
+              {user.role === 'host' && (
+                <View style={styles.hostBadge}>
+                  <Text style={styles.hostBadgeText}>HOST</Text>
+                </View>
+              )}
+              {partyRole !== 'guest' && (
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>
+                    {PARTY_ROLE_LABELS[partyRole].toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
 
-        {user.howTheyKnow ? (
+        {user.blurb ? (
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>HOW THEY KNOW THE COUPLE</Text>
-            <Text style={styles.cardBody}>{user.howTheyKnow}</Text>
+            <Text style={styles.cardBody}>{user.blurb}</Text>
           </View>
         ) : null}
       </ScrollView>
+
+      <ImageViewer
+        uri={user.photoURL}
+        name={user.name}
+        visible={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+      />
     </ScreenWrapper>
   );
 }
@@ -85,8 +168,37 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: 'center',
   },
+  // Mirrors components/guests/GuestTile.tsx so the mark reads as the same
+  // thing in both places, sized up for the hero avatar. The ring colour
+  // matches this screen's background, which is what the tile does with its
+  // own surface.
+  singleBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.colors.gold,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.bg,
+  },
+  singleBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.bg,
+    fontFamily: theme.fonts.sans,
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
   hostBadge: {
-    marginTop: 8,
     backgroundColor: theme.colors.accentTint,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -97,6 +209,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
     color: theme.colors.accentDeep,
+    fontFamily: theme.fonts.sans,
+  },
+  // Gold, where HOST is accent-tinted: the two pills carry different kinds of
+  // information and should not read as the same kind of label.
+  roleBadge: {
+    backgroundColor: theme.colors.goldTint,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: theme.radii.pill,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: theme.colors.gold,
     fontFamily: theme.fonts.sans,
   },
   card: {

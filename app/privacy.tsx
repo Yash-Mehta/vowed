@@ -1,15 +1,15 @@
 import { ScrollView, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useGoBack } from '../hooks/useGoBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 
 export default function PrivacyScreen() {
-  const router = useRouter();
+  const goBack = useGoBack('/(tabs)/profile');
   const insets = useSafeAreaInsets();
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+      <TouchableOpacity onPress={goBack} style={styles.back}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 

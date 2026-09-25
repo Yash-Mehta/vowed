@@ -12,6 +12,11 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable, FunctionsError } from 'firebase/functions';
 import { db, functions } from './firebase';
+import type { PartyRole } from './partyRoles';
+
+// Re-exported so call sites that already import from this module don't need a
+// second import line for the display role.
+export type { PartyRole } from './partyRoles';
 
 export type UserRole = 'guest' | 'host';
 
@@ -28,6 +33,21 @@ export interface UserDoc {
   fcmToken: string | null;
   createdAt: unknown;
   isSingle?: boolean;
+  // Where this member sits in the wedding — DISPLAY ONLY. Groups the guest list
+  // and labels a badge; it must never gate UI or permissions. `role` above is
+  // the authorization axis and stays the only thing that decides what someone
+  // can see or do. Absent means 'guest'; read it through toPartyRole(), never
+  // with a bare cast, since nothing in firestore.rules constrains the value.
+  partyRole?: PartyRole;
+  // True for the couple themselves. Set by confirm.tsx for the wedding's
+  // creator and by a host for their partner — deliberately NOT derived from
+  // `role === 'host'`, because an admin who is not the couple is a real case.
+  // isCouple is RETIRED. It was written at creation but never read anywhere,
+  // and the host's role picker writes partyRole alone — so demoting the
+  // creator left isCouple: true behind for the backfill script to re-stamp,
+  // silently reverting a deliberate decision. Couple status is now exactly
+  // `partyRole === 'couple'`, one field with one writer. Legacy documents may
+  // still carry it; firestore.rules keeps blocking client writes to it.
   // Notification preferences — absent means enabled; announcements are always on
   notifyPosts?: boolean;
   notifyComments?: boolean;
