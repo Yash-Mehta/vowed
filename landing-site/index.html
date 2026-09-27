@@ -77,6 +77,8 @@
     --closing-bloom: rgba(250, 246, 241, 0.14);
 
     /* Translucent chrome */
+    --spotlight-tint: rgba(194, 161, 123, 0.20);
+    --sheen: rgba(197, 138, 122, 0.85);
     --glass: rgba(255, 253, 249, 0.68);
     --glass-edge: rgba(255, 255, 255, 0.55);
 
@@ -152,6 +154,8 @@
       --closing-fg-dim: rgba(247, 239, 232, 0.7);
       --closing-bloom: rgba(219, 164, 146, 0.12);
 
+      --spotlight-tint: rgba(216, 188, 150, 0.13);
+      --sheen: rgba(247, 228, 216, 0.9);
       --glass: rgba(31, 23, 21, 0.66);
       --glass-edge: rgba(245, 226, 216, 0.1);
 
@@ -440,10 +444,35 @@
     font-size: clamp(3rem, 10vw, 6.8rem);
     line-height: 0.92;
     letter-spacing: var(--track-display);
-    background: linear-gradient(176deg, var(--ink) 48%, var(--accent) 140%);
+    /* Two layers on one clip: the sheen rides above the brand ramp and is
+       swept across once on load by moving only its own background-position.
+       A transform cannot be used here — background-clip: text does not reach
+       a transformed descendant, which is also why this headline keeps its
+       block reveal instead of the per-word rise the closing headline uses. */
+    background-image:
+      linear-gradient(100deg, transparent 40%, var(--sheen) 50%, transparent 60%),
+      linear-gradient(176deg, var(--ink) 48%, var(--accent) 140%);
+    background-size: 280% 100%, 100% 100%;
+    background-position: 200% 0, 0 0;
+    background-repeat: no-repeat;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+
+    /* The entrance is declared here rather than via .reveal: both would set
+       the `animation` property, and the more specific selector wins outright
+       instead of merging. The 90ms delay is d2, keeping the hero cascade. */
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(3px);
+    animation:
+      revealUp var(--dur-enter) var(--ease-out) 90ms forwards,
+      sheen 1500ms var(--ease-out) 700ms both;
+  }
+
+  @keyframes sheen {
+    from { background-position: 200% 0, 0 0; }
+    to   { background-position: -110% 0, 0 0; }
   }
   /* Never let the headline vanish if clipping is unsupported */
   @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
@@ -458,8 +487,15 @@
     /* Wipes open rather than fading: a line drawing itself reads as
        deliberate where a fading line reads as a loading state. */
     clip-path: inset(0 50% 0 50%);
-    animation: ruleWipe 700ms var(--ease-out) 260ms forwards;
+    opacity: 0;
+    /* Declared together on purpose. This previously also carried .reveal,
+       whose `animation: revealUp` overrode this one wholesale — the shorthand
+       does not merge — so the wipe never ran and the line stayed invisible. */
+    animation:
+      ruleFade var(--dur-enter) var(--ease-out) 160ms forwards,
+      ruleWipe 700ms var(--ease-out) 260ms forwards;
   }
+  @keyframes ruleFade { to { opacity: 1; } }
   @keyframes ruleWipe { to { clip-path: inset(0 0 0 0); } }
 
   .hero p.lede {
@@ -894,6 +930,169 @@
   .observe-reveal.in-view { opacity: 1; transform: none; filter: blur(0); }
 
   /* ============================================================
+     9b. Pizzazz — added motion, all transform/opacity only
+     ============================================================ */
+
+  /* --- Hero aurora -------------------------------------------
+     Two warm blooms drifting behind the mark. Slow and linear:
+     anything eased reads as an event, and this must never pull
+     the eye off the headline. Transform only — animating the
+     gradient itself would repaint the hero every frame. */
+  .aurora {
+    position: absolute;
+    inset: -10% -5% auto -5%;
+    height: 78%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+    /* The blooms are bright at the edges; fading the container
+       keeps them from ending in a visible seam. */
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 40%, transparent 100%);
+  }
+
+  .aurora span {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    filter: blur(58px);
+    will-change: transform;
+  }
+
+  .aurora-a {
+    width: 46vw;
+    min-width: 320px;
+    aspect-ratio: 1.35;
+    left: 8%;
+    top: -6%;
+    background: radial-gradient(circle, var(--accent-soft), transparent 68%);
+    opacity: 0.3;
+    animation: auroraA 26s linear infinite alternate;
+  }
+
+  .aurora-b {
+    width: 38vw;
+    min-width: 260px;
+    aspect-ratio: 1.15;
+    right: 6%;
+    top: 4%;
+    background: radial-gradient(circle, var(--champagne), transparent 68%);
+    opacity: 0.26;
+    animation: auroraB 31s linear infinite alternate;
+  }
+
+  @keyframes auroraA {
+    from { transform: translate3d(-6%, -3%, 0) scale(1); }
+    to   { transform: translate3d(9%, 6%, 0) scale(1.14); }
+  }
+  @keyframes auroraB {
+    from { transform: translate3d(5%, 4%, 0) scale(1.1); }
+    to   { transform: translate3d(-8%, -4%, 0) scale(0.94); }
+  }
+
+  /* The hero's own content has to sit above the blooms. */
+  .hero-inner { position: relative; z-index: 1; }
+
+  /* --- Headline word stagger ---------------------------------
+     Each word rises on its own beat. 46ms apart: below ~30 the
+     words arrive as one block, above ~80 the line reads as
+     slow. The wrapper clips, so words rise out of the baseline
+     rather than fading in mid-air. */
+  [data-words] .w {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    /* Cormorant's descenders and italic overhang get clipped by a
+       tight box; the padding buys them room and is removed from
+       the layout again by the negative margin. */
+    padding: 0.12em 0.06em 0.16em;
+    margin: -0.12em -0.06em -0.16em;
+  }
+
+  [data-words] .w > i {
+    display: inline-block;
+    font-style: inherit;
+    transform: translateY(110%);
+    transition: transform var(--dur-enter) var(--ease-expo) var(--w-delay, 0ms);
+    will-change: transform;
+  }
+
+  [data-words].words-in .w > i { transform: translateY(0); }
+
+  /* --- Bento spotlight ---------------------------------------
+     Decorative pointer-tracking, which belongs on a marketing
+     page and nowhere near real data. JS writes transform on this
+     element directly rather than a custom property on the card —
+     a variable on the parent restyles every child on each move. */
+  .spotlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 420px;
+    height: 420px;
+    margin: -210px 0 0 -210px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--spotlight-tint), transparent 62%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out);
+    will-change: transform;
+    z-index: 0;
+  }
+
+  [data-spotlight] { isolation: isolate; }
+  [data-spotlight] > *:not(.spotlight) { position: relative; z-index: 1; }
+
+  /* --- Closing light sweep -----------------------------------
+     Fires once when the band arrives, not on a loop: a repeating
+     shimmer on a call to action reads as a banner ad. */
+  .closing-sweep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 55%;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(
+      100deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.07) 45%,
+      rgba(255, 255, 255, 0.13) 50%,
+      rgba(255, 255, 255, 0.07) 55%,
+      transparent 100%
+    );
+    transform: translateX(-120%);
+  }
+
+  .closing.in-view .closing-sweep {
+    animation: sweep 1500ms var(--ease-in-out) 260ms both;
+  }
+
+  @keyframes sweep { to { transform: translateX(320%); } }
+
+  /* --- Countdown digit roll ----------------------------------
+     The window is the .n box; JS stacks the outgoing and incoming
+     digits inside it and slides. Transitions rather than keyframes
+     because seconds retrigger before the previous one can finish. */
+  .tile .n {
+    display: block;
+    height: 1.04em;
+    overflow: hidden;
+  }
+
+  .tile .n .ds {
+    display: block;
+    will-change: transform;
+  }
+
+  .tile .n .dv {
+    display: block;
+    height: 1.04em;
+    line-height: 1.04em;
+  }
+
+  /* ============================================================
      10. Hover — gated, so touch taps never leave a stuck state
      ============================================================ */
   @media (hover: hover) and (pointer: fine) {
@@ -943,9 +1142,29 @@
       opacity: 1;
     }
 
-    .hero-rule { animation: none; clip-path: none; }
+    .hero-rule { animation: none; clip-path: none; opacity: 1; }
     .live-dot { animation: none; }
     .scroll-progress { display: none; }
+
+    /* The blooms stay — they are colour, not motion — but stop drifting. */
+    .aurora span { animation: none; }
+    .hero h1 {
+      animation: none;
+      background-position: -110% 0, 0 0;
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+    .closing.in-view .closing-sweep { animation: none; }
+    .spotlight { display: none; }
+
+    /* Words appear in place rather than rising out of the baseline. */
+    [data-words] .w { overflow: visible; }
+    [data-words] .w > i { transform: none; transition: none; }
+
+    /* Digits swap outright; JS also skips the roll entirely. */
+    .tile .n { height: auto; overflow: visible; }
+    .tile .n .ds { transition: none; transform: none; }
 
     .badge-row a:hover,
     .feature-featured:hover,
@@ -1035,6 +1254,7 @@
 </header>
 
 <section class="hero">
+  <div class="aurora" aria-hidden="true"><span class="aurora-a"></span><span class="aurora-b"></span></div>
   <div class="hero-inner">
     <div class="mark-row reveal d1">
       <div class="icon-tile-wrap" data-tilt>
@@ -1044,8 +1264,8 @@
       </div>
     </div>
     <p class="eyebrow hero-eyebrow reveal d2">Wedding &amp; Celebration App</p>
-    <h1 class="reveal d2">Vowed Social</h1>
-    <div class="hero-rule reveal d3" aria-hidden="true"></div>
+    <h1>Vowed Social</h1>
+    <div class="hero-rule" aria-hidden="true"></div>
     <p class="lede reveal d3">The countdown, the shared photo feed, the schedule — everything your wedding party keeps up with, in one place.</p>
     <div class="badge-row reveal d4" id="get-app">
       <a href="https://apps.apple.com/us/app/vowed-social/id6766561614" aria-label="Download on the App Store">
@@ -1082,7 +1302,8 @@
     <h2>Built for everyone in the wedding party</h2>
   </div>
   <div class="feature-bento">
-    <div class="feature-featured observe-reveal">
+    <div class="feature-featured observe-reveal" data-spotlight>
+      <span class="spotlight" aria-hidden="true"></span>
       <div class="feed-mock" aria-hidden="true">
         <div class="feed-mock-head">
           <div class="feed-mock-avatar"></div>
@@ -1100,21 +1321,24 @@
       <h3>One feed, shared by everyone</h3>
       <p>Guests and hosts post photos and updates together. Hosts can pin the important stuff so it never gets buried.</p>
     </div>
-    <div class="feature-mini observe-reveal">
+    <div class="feature-mini observe-reveal" data-spotlight>
+      <span class="spotlight" aria-hidden="true"></span>
       <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
       <div>
         <h3>A countdown you'll actually check</h3>
         <p>Right at the top of the feed, every time you open the app.</p>
       </div>
     </div>
-    <div class="feature-mini observe-reveal">
+    <div class="feature-mini observe-reveal" data-spotlight>
+      <span class="spotlight" aria-hidden="true"></span>
       <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg></div>
       <div>
         <h3>The schedule, spelled out</h3>
         <p>Ceremony time, venue, dress code, and the full guest list.</p>
       </div>
     </div>
-    <div class="feature-mini observe-reveal">
+    <div class="feature-mini observe-reveal" data-spotlight>
+      <span class="spotlight" aria-hidden="true"></span>
       <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M2.5 20c.6-3.4 2.9-5.4 5.5-5.4s4.9 2 5.5 5.4M14.7 14.9c2 .2 3.6 1.9 4 4.6"/></svg></div>
       <div>
         <h3>One account, every wedding</h3>
@@ -1125,8 +1349,9 @@
 </section>
 
 <section class="closing observe-reveal">
+  <span class="closing-sweep" aria-hidden="true"></span>
   <div class="closing-inner">
-    <h2>The story is just beginning</h2>
+    <h2 data-words>The story is just beginning</h2>
     <p class="closing-sub">Get Vowed and stay close to everything happening around your wedding.</p>
     <div class="badge-row" style="margin-top: 2.2rem;">
       <a href="https://apps.apple.com/us/app/vowed-social/id6766561614" aria-label="Download on the App Store">
@@ -1153,6 +1378,66 @@
   var hasIO = 'IntersectionObserver' in window;
 
   /* ----------------------------------------------------------
+     Digit roll
+     The outgoing and incoming digits are stacked inside the
+     element, which clips; sliding the stack up by one line swaps
+     them. A transition rather than a keyframe, because a second
+     can tick before the previous roll has finished and a
+     transition retargets from wherever it got to.
+
+     Only the tiles roll. The prose copy ("N days till I do") and
+     any element without .dv scaffolding just takes the text.
+     ---------------------------------------------------------- */
+  function setDigits(el, text, dur) {
+    if (el.getAttribute('data-cd') === 'days-text' || reduceMotion.matches || !dur) {
+      el.textContent = text;
+      return;
+    }
+
+    var stack = el.firstChild && el.firstChild.className === 'ds' ? el.firstChild : null;
+    if (!stack) {
+      stack = document.createElement('span');
+      stack.className = 'ds';
+      var initial = document.createElement('span');
+      initial.className = 'dv';
+      initial.textContent = el.textContent;
+      stack.appendChild(initial);
+      el.textContent = '';
+      el.appendChild(stack);
+    }
+
+    // A roll already in flight: land it before starting the next, so
+    // the stack never grows past two children.
+    if (stack.childNodes.length > 1) finish(stack);
+
+    var incoming = document.createElement('span');
+    incoming.className = 'dv';
+    incoming.textContent = text;
+    stack.appendChild(incoming);
+
+    requestAnimationFrame(function () {
+      stack.style.transition = 'transform ' + dur + 'ms var(--ease-out)';
+      stack.style.transform = 'translateY(-1.04em)';
+    });
+
+    var done = function (e) {
+      if (e && e.target !== stack) return;
+      stack.removeEventListener('transitionend', done);
+      finish(stack);
+    };
+    stack.addEventListener('transitionend', done);
+    // transitionend does not fire on a backgrounded tab, which would
+    // otherwise leave a two-deep stack frozen mid-slide.
+    setTimeout(done, dur + 80);
+  }
+
+  function finish(stack) {
+    while (stack.childNodes.length > 1) stack.removeChild(stack.firstChild);
+    stack.style.transition = 'none';
+    stack.style.transform = 'none';
+  }
+
+  /* ----------------------------------------------------------
      Countdown
      Writes to the DOM only when a value actually changes, and
      re-arms on the next real second boundary instead of letting
@@ -1162,10 +1447,10 @@
     var target = new Date('2027-04-24T16:00:00-04:00').getTime();
 
     var fields = [
-      { els: document.querySelectorAll('[data-cd="days"], [data-cd="days-text"]'), pad: false, last: null },
-      { els: document.querySelectorAll('[data-cd="hours"]'), pad: true, last: null },
-      { els: document.querySelectorAll('[data-cd="mins"]'), pad: true, last: null },
-      { els: document.querySelectorAll('[data-cd="secs"]'), pad: true, last: null }
+      { key: 'days', els: document.querySelectorAll('[data-cd="days"], [data-cd="days-text"]'), pad: false, last: null },
+      { key: 'hours', els: document.querySelectorAll('[data-cd="hours"]'), pad: true, last: null },
+      { key: 'mins', els: document.querySelectorAll('[data-cd="mins"]'), pad: true, last: null },
+      { key: 'secs', els: document.querySelectorAll('[data-cd="secs"]'), pad: true, last: null }
     ];
 
     function tick() {
@@ -1180,9 +1465,15 @@
       for (var i = 0; i < fields.length; i++) {
         var f = fields[i];
         if (f.last === values[i]) continue;
+        var first = f.last === null;
         f.last = values[i];
         var text = f.pad ? String(values[i]).padStart(2, '0') : String(values[i]);
-        for (var j = 0; j < f.els.length; j++) f.els[j].textContent = text;
+        for (var j = 0; j < f.els.length; j++) {
+          // Seconds get a near-imperceptible roll: it fires sixty times a
+          // minute, and anything slower turns a proof-of-life into a tic.
+          // The other three change rarely enough to earn the full move.
+          setDigits(f.els[j], text, first ? 0 : (f.key === 'secs' ? 150 : 340));
+        }
       }
 
       // Land just after the next whole second so digits never sit stale.
@@ -1223,6 +1514,98 @@
     }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
 
     for (var k = 0; k < targets.length; k++) io.observe(targets[k]);
+  })();
+
+  /* ----------------------------------------------------------
+     Headline word stagger
+     Splits on whitespace only — never on characters. Per-letter
+     animation shreds the accessibility tree and mangles any word
+     a screen reader tries to pronounce. The wrapper keeps the
+     original text as one readable node per word.
+     ---------------------------------------------------------- */
+  (function words() {
+    var heads = document.querySelectorAll('[data-words]');
+
+    for (var i = 0; i < heads.length; i++) {
+      var head = heads[i];
+      var parts = head.textContent.trim().split(/\s+/);
+      head.textContent = '';
+      // The hero h1 no longer carries .reveal.d2, so its words start on the
+      // beat d2 would have, keeping the eyebrow/headline/rule cascade intact.
+      var base = head.closest && head.closest('.hero') ? 90 : 0;
+
+      for (var w = 0; w < parts.length; w++) {
+        var outer = document.createElement('span');
+        outer.className = 'w';
+        outer.style.setProperty('--w-delay', (reduceMotion.matches ? 0 : base + w * 46) + 'ms');
+        var inner = document.createElement('i');
+        inner.textContent = parts[w];
+        outer.appendChild(inner);
+        head.appendChild(outer);
+        if (w < parts.length - 1) head.appendChild(document.createTextNode(' '));
+      }
+
+      // The hero headline is above the fold, so it plays on load. The
+      // closing one waits for its section to arrive.
+      var inClosing = head.closest && head.closest('.closing');
+      if (!inClosing || !hasIO) {
+        head.classList.add('words-in');
+      } else {
+        (function (h) {
+          new IntersectionObserver(function (entries, obs) {
+            if (!entries[0].isIntersecting) return;
+            h.classList.add('words-in');
+            obs.disconnect();
+          }, { threshold: 0.3 }).observe(h);
+        })(head);
+      }
+    }
+  })();
+
+  /* ----------------------------------------------------------
+     Bento spotlight
+     Decorative pointer tracking — fine on a marketing page, and
+     gated to fine pointers so a tap never leaves a glow stuck
+     under someone's thumb. One rAF per frame at most, and the
+     transform is written to the spotlight element itself rather
+     than to a custom property on the card, which would restyle
+     every child on every move.
+     ---------------------------------------------------------- */
+  (function spotlight() {
+    if (!finePointer.matches || reduceMotion.matches) return;
+
+    var cards = document.querySelectorAll('[data-spotlight]');
+
+    for (var i = 0; i < cards.length; i++) {
+      (function (card) {
+        var glow = card.querySelector('.spotlight');
+        if (!glow) return;
+        var queued = false;
+        var x = 0;
+        var y = 0;
+
+        card.addEventListener('pointermove', function (e) {
+          if (e.pointerType !== 'mouse') return;
+          var rect = card.getBoundingClientRect();
+          x = e.clientX - rect.left;
+          y = e.clientY - rect.top;
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(function () {
+            queued = false;
+            glow.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+          });
+        });
+
+        card.addEventListener('pointerenter', function (e) {
+          if (e.pointerType !== 'mouse') return;
+          glow.style.opacity = '1';
+        });
+        card.addEventListener('pointerleave', function () {
+          glow.style.opacity = '0';
+        });
+      })(cards[i]);
+    }
   })();
 
   /* ----------------------------------------------------------
