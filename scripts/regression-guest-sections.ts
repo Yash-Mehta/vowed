@@ -56,26 +56,27 @@ const entries = [
 const groups = buildGuestGroups(entries, '');
 check(
   'sections follow the declared order',
-  groups.map((g) => g.key).join(',') === 'couple,bridalParty,family,guest'
+  groups.map((g) => g.key).join(',') === 'couple,family,bridalParty,guest',
+  'family sits above the wedding party'
 );
 check(
   'members are alphabetical within a section',
-  groups[1].items.map((i) => i.uid).join(',') === 'adam,zoe'
+  groups[2].items.map((i) => i.uid).join(',') === 'adam,zoe'
 );
 check(
   'each section maps to its tile scale',
   `${groups[0].variant}/${groups[1].variant}/${groups[3].variant}` === 'large/medium/compact'
 );
 check('a member with no partyRole lands in the guests section', groups[3].items[0].uid === 'rob');
-check('the guests section is never titled "Everyone else"', groups[3].title === 'Guests');
+check('the last section is never titled "Everyone else"', groups[3].title === 'Our Favorite People');
 
 console.log('\nedge cases:');
 const legacyOnly = buildGuestGroups([toEntry(member('solo'))], '');
 check('empty sections are omitted entirely', legacyOnly.length === 1);
 check(
-  'a wedding with no party roles reads as "Guests"',
-  legacyOnly[0].title === 'Guests',
-  'needs no special case now that the section is titled Guests throughout'
+  'a wedding with no party roles still reads warmly',
+  legacyOnly[0].title === 'Our Favorite People',
+  'the single section a legacy wedding shows must not read as a leftovers bucket'
 );
 
 console.log('\nsearch:');
@@ -134,6 +135,14 @@ check('no label is empty, so a badge cannot render as a blank pill',
   PARTY_ROLE_ORDER.every((r) => PARTY_ROLE_LABELS[r].trim().length > 0));
 check('PARTY_ROLE_ORDER has no duplicates, so nobody is listed twice',
   new Set(PARTY_ROLE_ORDER).size === PARTY_ROLE_ORDER.length);
+// Headings sit over a group and are written in the couple's voice; labels sit
+// on one person. Unifying them would put "Our Favorite People" on a profile
+// badge, which reads as a claim about that individual.
+check('section headings and badge labels are deliberately different',
+  PARTY_ROLE_SECTION_TITLES.guest !== PARTY_ROLE_LABELS.guest &&
+  PARTY_ROLE_SECTION_TITLES.family !== PARTY_ROLE_LABELS.family);
+check('badge labels stay singular, so a pill never reads as a group',
+  PARTY_ROLE_LABELS.family === 'Family' && PARTY_ROLE_LABELS.guest === 'Guest');
 
 console.log('\nnames that render as nothing:');
 // trim() strips U+00A0 and U+FEFF but NOT U+200B and the other format

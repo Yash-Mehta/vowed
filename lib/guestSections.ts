@@ -117,8 +117,10 @@ export function buildGuestGroups(entries: readonly GuestEntry[], query: string):
   })).filter((g) => g.items.length > 0);
 
   // No special case for the legacy wedding where everyone is unmarked: the
-  // section is titled "Guests" either way, which reads correctly whether it
-  // stands alone or sits under Couple and Wedding party.
+  // 'guest' entry of PARTY_ROLE_SECTION_TITLES was written to read correctly
+  // whether it stands alone or sits alongside the other PARTY_ROLE_ORDER
+  // sections, so nothing here needs to key off which sections are actually
+  // present.
   return groups;
 }
 

@@ -165,10 +165,18 @@ export function PostCard({ post, liked, onLike, onLikeCountPress, onCommentPress
               </View>
             </>
           )}
-          {isHost && onDownload && (
+          {/* Not gated on isHost any more: saving a photo to your own camera
+              roll is something every guest can do. The caller decides whether
+              a post has anything to save by passing onDownload at all, and
+              accessibility gets a real label — an unlabelled icon button
+              announced as nothing. */}
+          {onDownload && (
             <TouchableOpacity
               style={styles.downloadBtn}
               onPress={() => onDownload(photos[photoIndex])}
+              accessibilityRole="button"
+              accessibilityLabel="Save this photo to your camera roll"
+              hitSlop={8}
               activeOpacity={0.75}>
               <Ionicons name="download-outline" size={18} color="#fff" />
             </TouchableOpacity>

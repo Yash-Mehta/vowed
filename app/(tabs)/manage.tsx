@@ -844,7 +844,24 @@ function LogoSettings({ weddingId, config }: { weddingId: string | null; config:
             await updateDoc(doc(db, 'weddings', weddingId), { coverPhotoURL: null });
             try {
               await deleteObject(ref(storage, `weddings/${weddingId}/coverPhoto.jpg`));
-            } catch {}
+            } catch (e: unknown) {
+              const code = (e as { code?: string })?.code;
+              // object-not-found is the ordinary case: the wedding never had
+              // an uploaded cover, or it was already removed. Anything else
+              // means the photo is GONE FROM THE APP BUT STILL IN STORAGE,
+              // reachable by anyone holding its download link — those links
+              // carry a token and bypass Storage rules. Swallowing that, as
+              // this did, turns a failed removal into a silent one: the
+              // monogram returns and the host believes the photo is gone.
+              if (code !== 'storage/object-not-found') {
+                console.warn('[manage] cover photo delete failed:', e);
+                Alert.alert(
+                  'Photo removed, but not deleted',
+                  'It no longer appears in the app, but the image file could not be deleted and may still be reachable by anyone with the old link. Please try removing it again.' +
+                    (code ? `\n\n(${code})` : '')
+                );
+              }
+            }
           } catch (e: any) {
             Alert.alert('Error', e.message);
           } finally {

@@ -90,38 +90,73 @@ export default function ComposeScreen() {
       return;
     }
     setPosting(true);
+    // Which half failed matters: an upload that is refused and a document
+    // write that is refused need completely different fixes, and the old
+    // single catch reported both as the same sentence.
+    let stage: 'upload' | 'save' = 'upload';
     try {
       let photoURLs: string[] = [];
       if (imageURIs.length > 0 && !isAnnouncement) {
         photoURLs = await Promise.all(
           imageURIs.map(async (uri, i) => {
-            const blob = await (await fetch(uri)).blob();
-            const storageRef = ref(storage, `weddings/${weddingId}/posts/${firebaseUser.uid}-${Date.now()}-${i}`);
-            await uploadBytes(storageRef, blob);
+            const res = await fetch(uri);
+            const blob = await res.blob();
+            // storage.rules requires contentType to match image/.*, and a
+            // blob built from a file:// URI often carries no type at all — in
+            // which case Firebase sends application/octet-stream and the rule
+            // refuses the upload. Every other uploader in this app passes an
+            // explicit contentType; this one did not. Anything that is not
+            // already an image type falls back rather than being passed
+            // through, since passing it through fails the same rule.
+            const contentType = blob.type && blob.type.startsWith('image/')
+              ? blob.type
+              : 'image/jpeg';
+            const storageRef = ref(
+              storage,
+              `weddings/${weddingId}/posts/${firebaseUser.uid}-${Date.now()}-${i}.jpg`
+            );
+            await uploadBytes(storageRef, blob, { contentType });
             return getDownloadURL(storageRef);
           })
         );
       }
+
+      stage = 'save';
       await addDoc(postsCol(weddingId), {
         type: isAnnouncement ? 'announcement' : 'photo',
         caption: caption.trim(),
         photoURL: photoURLs[0] ?? null,
         photoURLs,
-        photoAspectRatio: photoURLs.length > 0 ? firstPhotoAspectRatio : null,
+        // Firestore rejects an undefined field value outright, taking the
+        // whole write with it. Every value below must be a real value or an
+        // explicit null — an older member doc missing photoURL is enough.
+        photoAspectRatio: photoURLs.length > 0 ? firstPhotoAspectRatio ?? null : null,
         authorId: firebaseUser.uid,
-        authorName: userDoc.displayName,
-        authorPhotoURL: userDoc.photoURL,
+        authorName: userDoc.displayName ?? 'Guest',
+        authorPhotoURL: userDoc.photoURL ?? null,
         pinned,
         likeCount: 0,
         commentCount: 0,
         createdAt: serverTimestamp(),
       });
-      goBack();
-    } catch {
-      Alert.alert('Error', 'Could not post. Please try again.');
-    } finally {
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      const detail = code ?? (e instanceof Error ? e.message : String(e));
+      console.warn(`[compose] ${stage} failed:`, e);
+      Alert.alert(
+        stage === 'upload' ? 'Could not upload the photo' : 'Could not save the post',
+        `Please try again.\n\n(${detail})`
+      );
       setPosting(false);
+      return;
     }
+
+    setPosting(false);
+    // Outside the try on purpose. This used to sit inside it, so a
+    // navigation error was reported as "Could not post" on a post that had
+    // already been written — and the obvious response to that message is to
+    // post again.
+    goBack();
   }
 
   return (
