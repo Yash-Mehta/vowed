@@ -50,8 +50,14 @@ export function CommentSheet({ postId, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const keyboardAnim = useRef(new Animated.Value(0)).current;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const { height: windowHeight } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const unobstructedHeight = useRef(windowHeight);
+  // The no-keyboard baseline above is only meaningful for the orientation it
+  // was captured in. Track the width it was captured at so a rotation (or a
+  // foldable fold, which also changes width) can be detected below, instead
+  // of silently comparing a new orientation's windowHeight against a stale
+  // baseline from the old one.
+  const unobstructedWidth = useRef(width);
 
   useEffect(() => {
     if (!postId) return;
@@ -60,7 +66,14 @@ export function CommentSheet({ postId, onClose }: Props) {
 
     // Seed from current state: the sheet can be opened while a keyboard is
     // already up, and a focus swap does not always fire a show event.
-    setKeyboardHeight(Keyboard.metrics()?.height ?? 0);
+    // keyboardAnim must be seeded the same way: it drives the iOS padding
+    // path and is otherwise only ever mutated inside the show/hide listeners
+    // below, so without this it would start each mount of this effect from
+    // whatever value survived the previous mount instead of the real current
+    // keyboard state.
+    const initialKeyboardHeight = Keyboard.metrics()?.height ?? 0;
+    setKeyboardHeight(initialKeyboardHeight);
+    keyboardAnim.setValue(initialKeyboardHeight);
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
       setKeyboardHeight(e.endCoordinates.height);
@@ -84,14 +97,32 @@ export function CommentSheet({ postId, onClose }: Props) {
     return () => {
       showSub.remove();
       hideSub.remove();
+      // These listeners are recreated per-postId (see the deps below), so
+      // closing the sheet tears them down. If the native hide event fires
+      // after that teardown — e.g. tapping Send (which does not blur the
+      // input) then immediately tapping ✕ — the hide is dropped and
+      // keyboardAnim/keyboardHeight are left stuck at their last non-zero
+      // value with nothing left to reset them, producing a dead gap under
+      // the sheet on the next open. Force both back to 0 here so a dropped
+      // hide can't survive a close. This looks removable (nothing is on
+      // screen while the sheet is closed), but removing it re-introduces
+      // that stuck-padding bug. Use setValue, not an animation — there is
+      // nothing visible to animate while closed.
+      setKeyboardHeight(0);
+      keyboardAnim.setValue(0);
     };
   }, [postId]);
 
   // Remember how tall the window is with no keyboard up, so the next block can
-  // tell whether Android actually resized.
+  // tell whether Android actually resized. Also capture the width the
+  // baseline was measured at (see unobstructedWidth above) so a later
+  // rotation can be detected.
   useEffect(() => {
-    if (keyboardHeight === 0) unobstructedHeight.current = windowHeight;
-  }, [keyboardHeight, windowHeight]);
+    if (keyboardHeight === 0) {
+      unobstructedHeight.current = windowHeight;
+      unobstructedWidth.current = width;
+    }
+  }, [keyboardHeight, windowHeight, width]);
 
   // Android's Modal sets SOFT_INPUT_ADJUST_RESIZE on its own dialog window, so
   // the window usually shrinks by itself and padding on top of that would lift
@@ -101,8 +132,22 @@ export function CommentSheet({ postId, onClose }: Props) {
   // (what this did) is wrong in the first case; not padding is wrong in the
   // second. Measure instead of guessing: pad only when the window did NOT
   // shrink. Same approach as components/CountryCodePicker.tsx.
+  // If the width changed since the baseline was captured, the device rotated
+  // (or a foldable folded) while the keyboard was up: unobstructedHeight.current
+  // still holds the PREVIOUS orientation's no-keyboard height, so comparing
+  // this orientation's windowHeight against it would be answering the wrong
+  // question. A fresh baseline requires the keyboard to go down first (see
+  // the effect above), which hasn't happened yet — so fall back to not
+  // padding rather than guess. That matches Android's own
+  // SOFT_INPUT_ADJUST_RESIZE behavior, the common case this whole measurement
+  // exists to find the exception to, so it is the safer default while the
+  // baseline is unknown for the current orientation.
+  const orientationChangedWithKeyboardUp = width !== unobstructedWidth.current;
   const androidKeyboardPad =
-    Platform.OS === 'android' && keyboardHeight > 0 && windowHeight >= unobstructedHeight.current
+    Platform.OS === 'android' &&
+    keyboardHeight > 0 &&
+    !orientationChangedWithKeyboardUp &&
+    windowHeight >= unobstructedHeight.current
       ? keyboardHeight
       : 0;
 
