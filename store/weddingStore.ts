@@ -8,6 +8,12 @@ interface WeddingState {
   setLoading: (loading: boolean) => void;
   getDaysUntilWedding: () => number;
   getCountdownParts: () => { days: number; hours: number; mins: number };
+  // Switches at the ceremony INSTANT (config.weddingDate, parsed from
+  // weddingDateTimeUTC) — not at midnight, not at the start of the day. On the
+  // wedding morning the countdown keeps counting down in hours/minutes right up
+  // until this flips. `>=` so the exact instant already reads as married, which
+  // matches getCountdownParts clamping to all-zero at that same instant.
+  hasWeddingHappened: () => boolean;
 }
 
 export const useWeddingStore = create<WeddingState>((set, get) => ({
@@ -30,5 +36,10 @@ export const useWeddingStore = create<WeddingState>((set, get) => ({
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     return { days, hours, mins };
+  },
+  hasWeddingHappened: () => {
+    const { config } = get();
+    if (!config) return false;
+    return Date.now() >= config.weddingDate.getTime();
   },
 }));
