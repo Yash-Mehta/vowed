@@ -10,6 +10,7 @@ import {
   Keyboard,
   Animated,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import {
   collection,
@@ -48,12 +49,21 @@ export function CommentSheet({ postId, onClose }: Props) {
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const keyboardAnim = useRef(new Animated.Value(0)).current;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const { height: windowHeight } = useWindowDimensions();
+  const unobstructedHeight = useRef(windowHeight);
 
   useEffect(() => {
+    if (!postId) return;
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
+    // Seed from current state: the sheet can be opened while a keyboard is
+    // already up, and a focus swap does not always fire a show event.
+    setKeyboardHeight(Keyboard.metrics()?.height ?? 0);
+
     const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
       Animated.timing(keyboardAnim, {
         toValue: e.endCoordinates.height,
         duration: Platform.OS === 'ios' ? e.duration : 250,
@@ -63,6 +73,7 @@ export function CommentSheet({ postId, onClose }: Props) {
     });
 
     const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      setKeyboardHeight(0);
       Animated.timing(keyboardAnim, {
         toValue: 0,
         duration: Platform.OS === 'ios' ? e.duration : 250,
@@ -74,7 +85,26 @@ export function CommentSheet({ postId, onClose }: Props) {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [postId]);
+
+  // Remember how tall the window is with no keyboard up, so the next block can
+  // tell whether Android actually resized.
+  useEffect(() => {
+    if (keyboardHeight === 0) unobstructedHeight.current = windowHeight;
+  }, [keyboardHeight, windowHeight]);
+
+  // Android's Modal sets SOFT_INPUT_ADJUST_RESIZE on its own dialog window, so
+  // the window usually shrinks by itself and padding on top of that would lift
+  // the composer into mid-air. That flag is ignored under the edge-to-edge
+  // display Expo 54 forces on Android 15+, and then nothing moves and the
+  // keyboard sits over the composer — which is the bug. Padding unconditionally
+  // (what this did) is wrong in the first case; not padding is wrong in the
+  // second. Measure instead of guessing: pad only when the window did NOT
+  // shrink. Same approach as components/CountryCodePicker.tsx.
+  const androidKeyboardPad =
+    Platform.OS === 'android' && keyboardHeight > 0 && windowHeight >= unobstructedHeight.current
+      ? keyboardHeight
+      : 0;
 
   useEffect(() => {
     if (!postId || !weddingId) return;
@@ -102,11 +132,11 @@ export function CommentSheet({ postId, onClose }: Props) {
     });
   }
 
-  const bottomPad = keyboardAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [insets.bottom, 0],
-    extrapolate: 'clamp',
-  });
+  // The home-indicator gap belongs under the composer only while the keyboard
+  // is down; with it up, the keyboard occupies that space already. This was an
+  // interpolate over inputRange [0, 1] against a value that ranges to the
+  // keyboard height — it clamped to the right answer, but only by accident.
+  const bottomPad = keyboardHeight > 0 ? 0 : insets.bottom;
 
   return (
     <Modal
@@ -114,7 +144,14 @@ export function CommentSheet({ postId, onClose }: Props) {
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}>
-      <Animated.View style={[styles.container, { paddingBottom: keyboardAnim }]}>
+      <Animated.View
+        style={[
+          styles.container,
+          // iOS gets the animated lift, which matches keyboardWillShow's own
+          // duration. Android gets a measured value, or zero when its window
+          // already resized for us.
+          { paddingBottom: Platform.OS === 'ios' ? keyboardAnim : androidKeyboardPad },
+        ]}>
         <View style={styles.handle} />
         <View style={styles.titleRow}>
           <Text style={styles.title}>Comments</Text>
