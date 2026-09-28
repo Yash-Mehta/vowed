@@ -198,8 +198,6 @@ async function seed() {
   for (let i = 0; i < POSTS.length; i++) {
     const p = POSTS[i];
     const postRef = db.collection(`weddings/${WEDDING_ID}/posts`).doc();
-    const commentCount = COMMENTS[i]?.length ?? 0;
-    const likeCount = guestUids.filter((_, idx) => (i + idx) % 2 === 0).length;
     await postRef.set({
       type: p.type,
       caption: p.caption,
@@ -208,8 +206,14 @@ async function seed() {
       authorName: HOST.displayName,
       authorPhotoURL: HOST.avatar,
       pinned: p.pinned,
-      likeCount,
-      commentCount,
+      // Seeded at zero and left to the Cloud Functions, exactly as a real post
+      // is. Writing a count here AND creating the like/comment documents below
+      // double-counts: onLikeCreated and onCommentCreated fire on those writes
+      // and increment on top of the seeded value. seed2.ts already did this
+      // correctly; this one left every seeded post reading twice its real
+      // engagement.
+      likeCount: 0,
+      commentCount: 0,
       createdAt: admin.firestore.Timestamp.fromMillis(Date.now() - (POSTS.length - i) * 3600000),
     });
 
