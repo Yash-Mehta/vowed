@@ -15,8 +15,95 @@ const WEDDING_ID  = 'seed-wedding-001';
 const GUEST_CODE  = 'VOWED-GUEST';
 const HOST_CODE   = 'VOWED-HOST';
 
-function ts(iso: string) {
-  return admin.firestore.Timestamp.fromDate(new Date(`${iso}+01:00`));
+// The wedding date is computed relative to whenever this script runs, so the
+// seed can never go stale again — pushing it to another fixed future date
+// just defers the same problem. seed-wedding-002 uses a much shorter runway
+// (see scripts/seed2.ts) so the two seed weddings exercise a long and a short
+// countdown instead of being interchangeable.
+const WEDDING_OFFSET_DAYS = 120;
+// Welcome Cocktails (the earliest schedule event) is two days before the
+// wedding — see the `events` array below.
+const FIRST_EVENT_OFFSET_DAYS = -2;
+// Matches the exact ceremony instant used for the "Wedding Ceremony" schedule
+// event below, so weddingDateTimeUTC and that event's startTime always agree.
+const CEREMONY_UTC_HOUR = 15;
+const CEREMONY_UTC_MINUTE = 30;
+
+function addDaysUTC(base: Date, days: number): Date {
+  return new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate() + days,
+    base.getUTCHours(),
+    base.getUTCMinutes(),
+    base.getUTCSeconds(),
+    base.getUTCMilliseconds(),
+  ));
+}
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+// All three display strings are generated from the computed date rather than
+// hand-written — the real database has these disagreeing in format across
+// weddings ("December 5, 2026" vs "Fri · July 26, 2024" vs "Saturday, 5
+// December 2026"), and a seed script is a good place to stop compounding that.
+// Every formatter is pinned to the UTC calendar day (matches weddingDateISO)
+// rather than a reader-dependent local day — see lib/weddingConfig.ts's
+// formatWeddingDateLong for why that distinction matters.
+function formatDateStamp(date: Date): string {
+  // "September 5, 2026"
+  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatShortDate(date: Date): string {
+  // "Sep 5"
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatDisplayDate(date: Date): string {
+  // "Saturday, 5 September 2026"
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+const now = new Date();
+const weddingDate = new Date(Date.UTC(
+  now.getUTCFullYear(),
+  now.getUTCMonth(),
+  now.getUTCDate() + WEDDING_OFFSET_DAYS,
+  CEREMONY_UTC_HOUR,
+  CEREMONY_UTC_MINUTE,
+  0,
+  0,
+));
+const firstEventDate = addDaysUTC(weddingDate, FIRST_EVENT_OFFSET_DAYS);
+
+const WEDDING_DATE_ISO = isoDate(weddingDate);
+const WEDDING_DATE_TIME_UTC = weddingDate.toISOString();
+const FIRST_EVENT_DATE_ISO = isoDate(firstEventDate);
+const DATE_STAMP = formatDateStamp(weddingDate);
+const SHORT_DATE = formatShortDate(weddingDate);
+const DISPLAY_DATE = formatDisplayDate(weddingDate);
+// hashtag carries the wedding year — derive it instead of hardcoding, or it
+// silently contradicts the computed date the moment the year rolls over.
+const HASHTAG = `#CarterBennett${weddingDate.getUTCFullYear()}`;
+
+// Every schedule-event instant below is built directly in UTC from the
+// computed wedding date — no local-offset assumption (the old `ts()` helper
+// hardcoded `+01:00` for every venue regardless of where it actually is), and
+// no bare `T12:00:00` with no zone either. `dayOffset` is relative to the
+// wedding day; `utcHour`/`utcMinute` are explicit UTC clock values.
+function eventTimestamp(dayOffset: number, utcHour: number, utcMinute: number) {
+  return admin.firestore.Timestamp.fromDate(new Date(Date.UTC(
+    weddingDate.getUTCFullYear(),
+    weddingDate.getUTCMonth(),
+    weddingDate.getUTCDate() + dayOffset,
+    utcHour,
+    utcMinute,
+    0,
+    0,
+  )));
 }
 
 const GUESTS = [
@@ -117,16 +204,16 @@ async function seed() {
     person1First: 'James',
     person2First: 'Olivia',
     monogramInitials: 'JO',
-    weddingDateISO: '2026-09-05',
-    weddingDateTimeUTC: '2026-09-05T15:30:00.000Z',
-    firstEventDateISO: '2026-09-03',
-    dateStamp: 'September 5, 2026',
-    shortDate: 'Sep 5',
-    displayDate: 'Saturday, 5 September 2026',
+    weddingDateISO: WEDDING_DATE_ISO,
+    weddingDateTimeUTC: WEDDING_DATE_TIME_UTC,
+    firstEventDateISO: FIRST_EVENT_DATE_ISO,
+    dateStamp: DATE_STAMP,
+    shortDate: SHORT_DATE,
+    displayDate: DISPLAY_DATE,
     venue: 'The Rosewood Estate · Tuscany',
     venueShort: 'Rosewood Estate',
     location: 'Tuscany, Italy',
-    hashtag: '#CarterBennett2026',
+    hashtag: HASHTAG,
     registryUrl: 'https://www.amazon.com',
     accentHex: '#7A4A3F',
     accentDeepHex: '#5C3329',
@@ -141,7 +228,7 @@ async function seed() {
   console.log('✓ Wedding document');
 
   // ── Invite codes ──────────────────────────────────────────────────────────
-  const preview = { coupleName: 'James & Olivia', dateStamp: 'September 5, 2026', venue: 'Rosewood Estate', monogramInitials: 'JO' };
+  const preview = { coupleName: 'James & Olivia', dateStamp: DATE_STAMP, venue: 'Rosewood Estate', monogramInitials: 'JO' };
   await db.doc(`weddingsByCode/${GUEST_CODE}`).set({ weddingId: WEDDING_ID, role: 'guest', preview });
   await db.doc(`weddingsByCode/${HOST_CODE}`).set({ weddingId: WEDDING_ID, role: 'host', preview });
   console.log('✓ Invite codes');
@@ -182,12 +269,12 @@ async function seed() {
 
   // ── Schedule ──────────────────────────────────────────────────────────────
   const events = [
-    { order: 0, title: 'Welcome Cocktails',  location: 'Vineyard · Rosewood Estate',       description: 'Sunset drinks and canapés among the vines.',             startTime: ts('2026-09-03T18:30:00'), icon: '🥂', color: 'sky',    primary: false, dress: 'Smart casual' },
-    { order: 1, title: 'Rehearsal Dinner',   location: 'Villa Dining Room · Rosewood',     description: 'An intimate dinner for the wedding party and family.',    startTime: ts('2026-09-04T19:00:00'), icon: '🕯️', color: 'sand',   primary: false, dress: 'Cocktail' },
-    { order: 2, title: 'Morning of Beauty',  location: 'Bridal Suite · Rosewood Estate',   description: 'Hair, makeup, and getting-ready with the bridal party.',  startTime: ts('2026-09-05T09:00:00'), icon: '✨', color: 'accent', primary: false, dress: 'Comfortable' },
-    { order: 3, title: 'Wedding Ceremony',   location: 'Chapel Garden · Rosewood Estate',  description: 'Please be seated 15 minutes before the ceremony.',       startTime: ts('2026-09-05T16:30:00'), icon: '💍', color: 'accent', primary: true,  dress: 'Black tie' },
-    { order: 4, title: 'Reception Dinner',   location: 'Grand Terrace · Rosewood Estate',  description: 'Dinner, toasts, and dancing under the Tuscan stars.',    startTime: ts('2026-09-05T20:00:00'), icon: '🍾', color: 'sky',    primary: false, dress: 'Black tie' },
-    { order: 5, title: 'Farewell Brunch',    location: 'Olive Grove · Rosewood Estate',    description: 'A relaxed farewell brunch before guests head home.',     startTime: ts('2026-09-06T11:00:00'), icon: '☀️', color: 'sand',   primary: false, dress: 'Casual' },
+    { order: 0, title: 'Welcome Cocktails',  location: 'Vineyard · Rosewood Estate',       description: 'Sunset drinks and canapés among the vines.',             startTime: eventTimestamp(-2, 17, 30), icon: '🥂', color: 'sky',    primary: false, dress: 'Smart casual' },
+    { order: 1, title: 'Rehearsal Dinner',   location: 'Villa Dining Room · Rosewood',     description: 'An intimate dinner for the wedding party and family.',    startTime: eventTimestamp(-1, 18, 0),  icon: '🕯️', color: 'sand',   primary: false, dress: 'Cocktail' },
+    { order: 2, title: 'Morning of Beauty',  location: 'Bridal Suite · Rosewood Estate',   description: 'Hair, makeup, and getting-ready with the bridal party.',  startTime: eventTimestamp(0, 8, 0),    icon: '✨', color: 'accent', primary: false, dress: 'Comfortable' },
+    { order: 3, title: 'Wedding Ceremony',   location: 'Chapel Garden · Rosewood Estate',  description: 'Please be seated 15 minutes before the ceremony.',       startTime: eventTimestamp(0, CEREMONY_UTC_HOUR, CEREMONY_UTC_MINUTE), icon: '💍', color: 'accent', primary: true,  dress: 'Black tie' },
+    { order: 4, title: 'Reception Dinner',   location: 'Grand Terrace · Rosewood Estate',  description: 'Dinner, toasts, and dancing under the Tuscan stars.',    startTime: eventTimestamp(0, 19, 0),   icon: '🍾', color: 'sky',    primary: false, dress: 'Black tie' },
+    { order: 5, title: 'Farewell Brunch',    location: 'Olive Grove · Rosewood Estate',    description: 'A relaxed farewell brunch before guests head home.',     startTime: eventTimestamp(1, 10, 0),   icon: '☀️', color: 'sand',   primary: false, dress: 'Casual' },
   ];
   const schedBatch = db.batch();
   for (const e of events) schedBatch.set(db.collection(`weddings/${WEDDING_ID}/schedule`).doc(), e);
