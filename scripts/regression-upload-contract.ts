@@ -2,16 +2,24 @@
 //
 // These read source rather than data, on purpose. The live suite
 // (regression-posts.ts) runs through the Admin SDK, which BYPASSES
-// firestore.rules and storage.rules entirely — so it cannot catch a write the
-// rules would refuse from a real client. That is exactly the bug that shipped:
-// compose.tsx was the only uploader in the app not passing a contentType, a
-// blob from a file:// URI carries no type, Firebase sent
-// application/octet-stream, and storage.rules requires
-// contentType.matches('image/.*'). Every photo post failed for every member,
-// while announcements — which skip the upload — kept working.
+// firestore.rules and storage.rules entirely — so it cannot see anything a
+// real client would be refused.
 //
-// Nothing that talks to Firestore could have found that. These checks would
-// have, on the commit that introduced it.
+// A correction, because the original version of this file stated the wrong
+// cause as settled fact: the missing contentType in compose.tsx did NOT break
+// photo posting. manage.tsx has always passed an explicit contentType on the
+// cover photo and fails identically, and every object already in the bucket
+// carries image/jpeg from before the fix — so RN's fetch(file://).blob() was
+// typing correctly all along. The real cause was a missing IAM grant on the
+// Cloud Storage service agent, which broke every firestore.exists() call in
+// storage.rules. Both produce storage/unauthorized, which is why the error
+// code never separated them.
+//
+// The checks below are still worth keeping. Passing an explicit contentType
+// is required by storage.rules and every other uploader in the app does it;
+// an undefined field value really does fail a whole Firestore write; and a
+// catch that discards its error is what hid the outage for five weeks. They
+// are correct invariants. They were just never the thing that was broken.
 //
 //   npx tsx scripts/regression-upload-contract.ts
 //
