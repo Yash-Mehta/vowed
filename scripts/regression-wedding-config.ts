@@ -54,7 +54,7 @@ import * as path from 'path';
 const FORCED_TZ = 'Pacific/Honolulu'; // UTC-10, no DST: unambiguously "behind UTC"
 process.env.TZ = FORCED_TZ;
 
-import { configFromDoc } from '../lib/weddingConfig';
+import { configFromDoc, formatWeddingDateLong } from '../lib/weddingConfig';
 import { joinLink, inviteMessage } from '../lib/invites';
 import { useWeddingStore } from '../store/weddingStore';
 
@@ -143,6 +143,68 @@ check('registryUrl defaults to null, not undefined (Firestore rejects undefined)
 check('coverPhotoURL defaults to null, not undefined', configFromDoc({}).coverPhotoURL === null);
 
 // ---------------------------------------------------------------------------
+console.log('\nformatWeddingDateLong (lib/weddingConfig.ts) — feed banner\'s post-wedding headline:');
+
+// Primary path: weddingDateISO, the couple's intended calendar day. No Date
+// object involved, so neither the forced behind-UTC TZ nor UTC-vs-local
+// getters can move it.
+check(
+  'formats the full, non-abbreviated calendar date from weddingDateISO',
+  formatWeddingDateLong('2026-06-15', new Date(nearMidnightUTC)) === 'June 15, 2026',
+  formatWeddingDateLong('2026-06-15', new Date(nearMidnightUTC))
+);
+check(
+  'spells the month out, not abbreviated',
+  formatWeddingDateLong('2026-09-28', new Date('2026-09-28T18:30:00.000Z')) === 'September 28, 2026'
+);
+
+// Real case (Ximena & Mario, from production): an evening ceremony in a
+// timezone behind UTC whose weddingDateTimeUTC instant rolls onto the NEXT
+// UTC calendar day — an 8pm US-Eastern ceremony is 00:00Z the following day.
+// If this function ever goes back to reading the ceremony INSTANT (in UTC or
+// local time) instead of weddingDateISO, the banner prints "December 19"
+// for a wedding actually held on the 18th. This is the regression this
+// suite exists to pin, proven against a real stored shape, not a
+// hypothetical one.
+const ximenaMario = configFromDoc({
+  weddingDateISO: '2027-12-18',
+  weddingDateTimeUTC: '2027-12-19T02:00:00.000Z',
+});
+check(
+  'a late-evening ceremony whose UTC instant rolls to the next day still shows its own weddingDateISO day',
+  formatWeddingDateLong(ximenaMario.weddingDateISO, ximenaMario.weddingDate) === 'December 18, 2027',
+  formatWeddingDateLong(ximenaMario.weddingDateISO, ximenaMario.weddingDate)
+);
+check(
+  'the harness can tell this apart from the instant-based (buggy) answer',
+  formatWeddingDateLong(ximenaMario.weddingDateISO, ximenaMario.weddingDate) !== 'December 19, 2027'
+);
+
+// Fallback path: weddingDateISO absent or malformed. configFromDoc already
+// treats the field as optional (older docs may predate it), so the formatter
+// must degrade rather than throw or print a blank headline.
+check(
+  'falls back to the UTC-read instant when weddingDateISO is absent',
+  formatWeddingDateLong('', new Date(nearMidnightUTC)) === 'June 15, 2026'
+);
+check(
+  'falls back to the UTC-read instant when weddingDateISO is not YYYY-MM-DD shaped',
+  formatWeddingDateLong('not-a-date', new Date(nearMidnightUTC)) === 'June 15, 2026'
+);
+check(
+  'falls back when weddingDateISO is shaped correctly but has an out-of-range month',
+  formatWeddingDateLong('2026-13-01', new Date(nearMidnightUTC)) === 'June 15, 2026'
+);
+check(
+  'a configFromDoc\'d wedding with only weddingDateTimeUTC (no weddingDateISO) does not throw or blank out',
+  (() => {
+    const cfg = configFromDoc({ weddingDateTimeUTC: '2026-06-15T18:30:00.000Z' });
+    const result = formatWeddingDateLong(cfg.weddingDateISO, cfg.weddingDate);
+    return typeof result === 'string' && result.length > 0;
+  })()
+);
+
+// ---------------------------------------------------------------------------
 console.log('\ncountdown maths (store/weddingStore.ts) around the ceremony boundary:');
 
 const T = new Date('2026-06-15T18:30:00.000Z').getTime();
@@ -189,6 +251,48 @@ check(
   'countdown decomposes into days/hours/mins correctly away from a boundary',
   decomp.days === 1 && decomp.hours === 2 && decomp.mins === 3,
   JSON.stringify(decomp)
+);
+
+// ---------------------------------------------------------------------------
+console.log('\nhasWeddingHappened (store/weddingStore.ts) around the same ceremony boundary:');
+
+// Reuses T and the config set above — same instant the countdown-parts checks
+// use, so both helpers are proven to agree about where the boundary sits.
+const oneWeekBefore = T - 7 * 24 * 60 * 60 * 1000;
+check(
+  'a week before the ceremony, hasWeddingHappened is false',
+  withFixedNow(oneWeekBefore, () => useWeddingStore.getState().hasWeddingHappened()) === false
+);
+
+check(
+  'one second before the ceremony, hasWeddingHappened is still false',
+  withFixedNow(T - 1000, () => useWeddingStore.getState().hasWeddingHappened()) === false
+);
+
+check(
+  'at the exact ceremony instant, hasWeddingHappened flips to true',
+  withFixedNow(T, () => useWeddingStore.getState().hasWeddingHappened()) === true
+);
+
+check(
+  'one second after the ceremony, hasWeddingHappened is true',
+  withFixedNow(T + 1000, () => useWeddingStore.getState().hasWeddingHappened()) === true
+);
+
+check(
+  'a year after the ceremony, hasWeddingHappened is still true — it never flips back',
+  withFixedNow(T + 365 * 24 * 60 * 60 * 1000, () => useWeddingStore.getState().hasWeddingHappened()) === true
+);
+
+check(
+  'with no config loaded, hasWeddingHappened is false rather than throwing',
+  (() => {
+    const real = useWeddingStore.getState().config;
+    useWeddingStore.getState().setConfig(null);
+    const result = useWeddingStore.getState().hasWeddingHappened();
+    useWeddingStore.getState().setConfig(real);
+    return result === false;
+  })()
 );
 
 // ---------------------------------------------------------------------------

@@ -17,9 +17,76 @@ const WEDDING_ID  = 'seed-wedding-002';
 const GUEST_CODE  = 'VOWED2-GUEST';
 const HOST_CODE   = 'VOWED2-HOST';
 
-function ts(iso: string) {
-  return admin.firestore.Timestamp.fromDate(new Date(`${iso}+01:00`));
+// The wedding date is computed relative to whenever this script runs, so the
+// seed can never go stale again — pushing it to another fixed future date
+// just defers the same problem. seed-wedding-001 uses a much longer runway
+// (see scripts/seed.ts) so the two seed weddings exercise a long and a short
+// countdown instead of being interchangeable.
+const WEDDING_OFFSET_DAYS = 45;
+// The rehearsal is the day before the wedding.
+const FIRST_EVENT_OFFSET_DAYS = -1;
+const CEREMONY_UTC_HOUR = 15;
+const CEREMONY_UTC_MINUTE = 0;
+
+function addDaysUTC(base: Date, days: number): Date {
+  return new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate() + days,
+    base.getUTCHours(),
+    base.getUTCMinutes(),
+    base.getUTCSeconds(),
+    base.getUTCMilliseconds(),
+  ));
 }
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+// All three display strings are generated from the computed date rather than
+// hand-written — the real database has these disagreeing in format across
+// weddings ("December 5, 2026" vs "Fri · July 26, 2024" vs "Saturday, 5
+// December 2026"), and a seed script is a good place to stop compounding
+// that. Every formatter is pinned to the UTC calendar day (matches
+// weddingDateISO) rather than a reader-dependent local day — see
+// lib/weddingConfig.ts's formatWeddingDateLong for why that matters.
+function formatDateStamp(date: Date): string {
+  // "July 18, 2026"
+  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatShortDate(date: Date): string {
+  // "Jul 18"
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatDisplayDate(date: Date): string {
+  // "Saturday, 18 July 2026"
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+const now = new Date();
+const weddingDate = new Date(Date.UTC(
+  now.getUTCFullYear(),
+  now.getUTCMonth(),
+  now.getUTCDate() + WEDDING_OFFSET_DAYS,
+  CEREMONY_UTC_HOUR,
+  CEREMONY_UTC_MINUTE,
+  0,
+  0,
+));
+const firstEventDate = addDaysUTC(weddingDate, FIRST_EVENT_OFFSET_DAYS);
+
+const WEDDING_DATE_ISO = isoDate(weddingDate);
+const WEDDING_DATE_TIME_UTC = weddingDate.toISOString();
+const FIRST_EVENT_DATE_ISO = isoDate(firstEventDate);
+const DATE_STAMP = formatDateStamp(weddingDate);
+const SHORT_DATE = formatShortDate(weddingDate);
+const DISPLAY_DATE = formatDisplayDate(weddingDate);
+// hashtag carries the wedding year — derive it instead of hardcoding, or it
+// silently contradicts the computed date the moment the year rolls over.
+const HASHTAG = `#ShawTorres${weddingDate.getUTCFullYear()}`;
 
 const HOST = {
   email: 'emma.shaw@example.com',
@@ -62,16 +129,16 @@ async function seed2() {
     person1First: 'Emma',
     person2First: 'Ryan',
     monogramInitials: 'ER',
-    weddingDateISO: '2026-07-18',
-    weddingDateTimeUTC: '2026-07-18T15:00:00.000Z',
-    firstEventDateISO: '2026-07-17',
-    dateStamp: 'July 18, 2026',
-    shortDate: 'Jul 18',
-    displayDate: 'Saturday, 18 July 2026',
+    weddingDateISO: WEDDING_DATE_ISO,
+    weddingDateTimeUTC: WEDDING_DATE_TIME_UTC,
+    firstEventDateISO: FIRST_EVENT_DATE_ISO,
+    dateStamp: DATE_STAMP,
+    shortDate: SHORT_DATE,
+    displayDate: DISPLAY_DATE,
     venue: 'The Glass House · Lake Como',
     venueShort: 'Glass House',
     location: 'Lake Como, Italy',
-    hashtag: '#ShawTorres2026',
+    hashtag: HASHTAG,
     registryUrl: null,
     accentHex: '#3B6B8A',
     accentDeepHex: '#2A4F6A',
@@ -87,7 +154,7 @@ async function seed2() {
 
   const preview = {
     coupleName: 'Emma & Ryan',
-    dateStamp: 'July 18, 2026',
+    dateStamp: DATE_STAMP,
     venue: 'Glass House',
     monogramInitials: 'ER',
   };

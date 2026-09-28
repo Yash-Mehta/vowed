@@ -31,6 +31,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
+import { formatWeddingDateLong } from '../../lib/weddingConfig';
 import { postsCol, onSnapshotError } from '../../lib/firestore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { PostCard, Post } from '../../components/PostCard';
@@ -38,7 +39,6 @@ import { AnnouncementCard } from '../../components/AnnouncementCard';
 import { CommentSheet } from '../../components/CommentSheet';
 import { LikesSheet } from '../../components/LikesSheet';
 import { EmptyState } from '../../components/EmptyState';
-import { Sprig } from '../../components/Sprig';
 import { theme } from '../../constants/theme';
 
 // The live subscription is capped at this, so opening the feed no longer costs
@@ -72,11 +72,12 @@ export default function FeedScreen() {
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [activeLikesPostId, setActiveLikesPostId] = useState<string | null>(null);
   const { firebaseUser, role, weddingId, userDoc } = useAuthStore();
-  const { config, getDaysUntilWedding, getCountdownParts } = useWeddingStore();
+  const { config, getDaysUntilWedding, getCountdownParts, hasWeddingHappened } = useWeddingStore();
   const router = useRouter();
 
   const daysAway = getDaysUntilWedding();
   const { days: cdDays, hours: cdHours, mins: cdMins } = getCountdownParts();
+  const weddingHappened = hasWeddingHappened();
 
   // The live subscription covers only the newest page. That is where new posts
   // arrive and where everyone is looking during an event; older pages are
@@ -315,7 +316,15 @@ export default function FeedScreen() {
   }
 
   const coupleName = config?.coupleName ?? 'Vowed';
-  const countdownSub = config ? `${config.dateStamp} · ${config.venueShort}` : '';
+  // The date lives in the headline once the wedding has happened (see the
+  // "Married — <date>" branch below), so the sub-line drops it there to avoid
+  // repeating it — venue alone. Beforehand it still carries both.
+  const countdownSub = config
+    ? weddingHappened
+      ? config.venueShort
+      : `${config.dateStamp} · ${config.venueShort}`
+    : '';
+  const marriedDate = config ? formatWeddingDateLong(config.weddingDateISO, config.weddingDate) : '';
 
   return (
     <ScreenWrapper>
@@ -352,29 +361,34 @@ export default function FeedScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.countdown}>
               <View style={styles.countdownFrame} pointerEvents="none" />
-              <View style={styles.countdownSprig}>
-                <Sprig size={120} color="rgba(255,255,255,0.9)" />
-              </View>
               <View style={styles.countdownLeft}>
-                <Text style={styles.countdownEyebrow}>COUNTDOWN</Text>
+                <Text style={styles.countdownEyebrow}>
+                  {weddingHappened ? 'THE DAY' : 'COUNTDOWN'}
+                </Text>
                 <Text style={styles.countdownDisplay}>
-                  {daysAway} days till{' '}
-                  <Text style={{ fontStyle: 'italic' }}>I do</Text>
+                  {weddingHappened ? `Married — ${marriedDate}` : (
+                    <>
+                      {daysAway} days till{' '}
+                      <Text style={{ fontStyle: 'italic' }}>I do</Text>
+                    </>
+                  )}
                 </Text>
                 <Text style={styles.countdownSub}>{countdownSub}</Text>
               </View>
-              <View style={styles.countdownTiles}>
-                {[
-                  { n: String(cdDays), l: 'DAYS' },
-                  { n: String(cdHours), l: 'HRS' },
-                  { n: String(cdMins), l: 'MIN' },
-                ].map((x) => (
-                  <View key={x.l} style={styles.tile}>
-                    <Text style={styles.tileNumber}>{x.n}</Text>
-                    <Text style={styles.tileLabel}>{x.l}</Text>
-                  </View>
-                ))}
-              </View>
+              {!weddingHappened && (
+                <View style={styles.countdownTiles}>
+                  {[
+                    { n: String(cdDays), l: 'DAYS' },
+                    { n: String(cdHours), l: 'HRS' },
+                    { n: String(cdMins), l: 'MIN' },
+                  ].map((x) => (
+                    <View key={x.l} style={styles.tile}>
+                      <Text style={styles.tileNumber}>{x.n}</Text>
+                      <Text style={styles.tileLabel}>{x.l}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </LinearGradient>
           </>
         }
@@ -502,7 +516,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.goldSoft,
     opacity: 0.55,
   },
-  countdownSprig: { position: 'absolute', right: -12, top: -12, opacity: 0.18 },
   countdownLeft: { flex: 1 },
   countdownEyebrow: {
     fontSize: 9,
