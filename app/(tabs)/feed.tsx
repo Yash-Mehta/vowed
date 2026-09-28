@@ -402,8 +402,13 @@ export default function FeedScreen() {
               onDelete={canDelete ? () => handleDelete(item) : undefined}
               onTogglePin={role === 'host' ? () => handleTogglePin(item) : undefined}
               onEdit={role === 'host' ? (caption) => handleEditCaption(item, caption) : undefined}
+              // Every member, not just hosts. The condition that remains is
+              // about the post, not the person: an announcement has no photo
+              // to save. Guests already render these exact URLs, and
+              // storage.rules gates post media on membership, so this opens
+              // no access they did not already have — it is a UI gate only.
               onDownload={
-                role === 'host' && (item.photoURL || item.photoURLs?.length)
+                item.photoURL || item.photoURLs?.length
                   ? (url) => handleDownload(item, url)
                   : undefined
               }
