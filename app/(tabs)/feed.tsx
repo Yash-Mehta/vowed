@@ -39,7 +39,6 @@ import { AnnouncementCard } from '../../components/AnnouncementCard';
 import { CommentSheet } from '../../components/CommentSheet';
 import { LikesSheet } from '../../components/LikesSheet';
 import { EmptyState } from '../../components/EmptyState';
-import { Sprig } from '../../components/Sprig';
 import { theme } from '../../constants/theme';
 
 // The live subscription is capped at this, so opening the feed no longer costs
@@ -362,9 +361,6 @@ export default function FeedScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.countdown}>
               <View style={styles.countdownFrame} pointerEvents="none" />
-              <View style={styles.countdownSprig}>
-                <Sprig size={120} color="rgba(255,255,255,0.9)" />
-              </View>
               <View style={styles.countdownLeft}>
                 <Text style={styles.countdownEyebrow}>
                   {weddingHappened ? 'THE DAY' : 'COUNTDOWN'}
@@ -520,7 +516,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.goldSoft,
     opacity: 0.55,
   },
-  countdownSprig: { position: 'absolute', right: -12, top: -12, opacity: 0.18 },
   countdownLeft: { flex: 1 },
   countdownEyebrow: {
     fontSize: 9,
