@@ -8,9 +8,10 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
 import {
-  KeyboardAvoidingView,
   useKeyboardState,
+  useReanimatedKeyboardAnimation,
 } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES, Country } from '../constants/countries';
@@ -26,8 +27,20 @@ export function CountryCodePicker({ value, onChange }: Props) {
   const [query, setQuery] = useState('');
   const insets = useSafeAreaInsets();
   // Selector form, so only a visibility flip re-renders this; the sheet's lift
-  // is driven natively by KeyboardAvoidingView below.
+  // never touches React state, it runs on the UI thread in the worklet below.
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
+  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
+
+  // Same mechanism as CommentSheet, for the same reason — see the long comment
+  // there. This Modal is `transparent`, so on iOS it presents full-screen and
+  // KeyboardAvoidingView's frame-derived padding was in fact correct here. It
+  // was correct only by accident of this container being a full-screen root
+  // though: the moment anything insets it (a pageSheet, a SafeAreaView) that
+  // silently under-pads, which is precisely what happened to CommentSheet. One
+  // pattern across both sheets, and no dependence on the shape of the Modal.
+  const keyboardAvoidStyle = useAnimatedStyle(() => ({
+    paddingBottom: -keyboardHeight.value,
+  }));
 
   // This file used to carry the same JS keyboard measurement CommentSheet did,
   // and it could not work for the same reason: on Android `Keyboard` events come
@@ -72,12 +85,10 @@ export function CountryCodePicker({ value, onChange }: Props) {
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-        {/* One code path for both platforms now. iOS already behaved correctly
-            with behavior="padding" and keeps exactly that; Android gains it for
-            the first time. The sheet keeps its own maxHeight: '70%', which now
-            resolves against the shrunken area, so the list gets shorter instead
-            of sliding under the keyboard. */}
-        <KeyboardAvoidingView style={styles.container} behavior="padding">
+        {/* One code path for both platforms. The sheet keeps its own
+            maxHeight: '70%', which resolves against the padded area, so the
+            list gets shorter instead of sliding under the keyboard. */}
+        <Reanimated.View style={[styles.container, keyboardAvoidStyle]}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close} />
           <View
             style={[styles.sheet, { paddingBottom: isKeyboardVisible ? 8 : insets.bottom + 8 }]}>
@@ -106,7 +117,7 @@ export function CountryCodePicker({ value, onChange }: Props) {
               ListEmptyComponent={<Text style={styles.empty}>No matching countries.</Text>}
             />
           </View>
-        </KeyboardAvoidingView>
+        </Reanimated.View>
       </Modal>
     </>
   );

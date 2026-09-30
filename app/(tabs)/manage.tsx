@@ -15,14 +15,11 @@ import {
   Share,
 } from 'react-native';
 // Expo SDK 54 forces edge-to-edge on Android, where the window no longer
-// resizes for the keyboard. The settings tab's ScrollView becomes
-// KeyboardAwareScrollView, which manages the viewport itself; the schedule
-// tab's FlatList has no equivalent in this library, so it stays a FlatList
-// wrapped in KeyboardAvoidingView instead — padding shrinks the flex
-// container directly (tracked via real keyboard height, not window resize),
-// which is what gives the list a scroll range again when the schedule is
-// empty or the focused row is last.
-import { KeyboardAwareScrollView, KeyboardAvoidingView } from 'react-native-keyboard-controller';
+// resizes for the keyboard. Both tabs use KeyboardAwareScrollView, which
+// manages the viewport itself and positions off the focused input's absolute
+// screen coordinates — the only mechanism here that is unaffected by this
+// screen's nesting under ScreenWrapper's SafeAreaView.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   collection,
@@ -457,17 +454,28 @@ export default function ManageScreen() {
 
       {tab === 'schedule' && (
         loadingSchedule ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.colors.accent} /> : (
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-          <FlatList
-            data={events}
-            keyExtractor={(e) => e.id}
+          // A KeyboardAwareScrollView rather than a FlatList in a
+          // KeyboardAvoidingView. That wrapper derived its padding from
+          // frame.y + frame.height measured against the full screen height, but
+          // onLayout reports a frame RELATIVE TO THE PARENT — and this one is
+          // nested under ScreenWrapper's SafeAreaView, below the tab header, in
+          // a bottom-tab screen. It therefore under-padded by the top inset on
+          // both platforms (~59pt on a modern iPhone), leaving the focused row
+          // still covered. KeyboardAwareScrollView works off the focused input's
+          // native ABSOLUTE screen coordinates instead, so nesting cannot skew
+          // it. A wedding's schedule is a handful of events, so losing FlatList
+          // virtualisation here costs nothing.
+          <KeyboardAwareScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={<EventForm fields={newFields} onChange={setNewFields} onSubmit={handleAddEvent} submitting={addingEvent} mode="add" />}
-            renderItem={({ item, index }) => {
+            bottomOffset={16}
+            contentContainerStyle={styles.listContent}>
+            <EventForm fields={newFields} onChange={setNewFields} onSubmit={handleAddEvent} submitting={addingEvent} mode="add" />
+            {events.length === 0 && <Text style={styles.empty}>No schedule events yet</Text>}
+            {events.map((item, index) => {
               if (editingId === item.id) {
                 return (
-                  <View style={styles.editCard}>
+                  <View key={item.id} style={styles.editCard}>
                     <Text style={styles.sectionLabel}>EDIT EVENT</Text>
                     <EventForm
                       fields={editFields}
@@ -481,7 +489,7 @@ export default function ManageScreen() {
                 );
               }
               return (
-                <View style={styles.eventRow}>
+                <View key={item.id} style={styles.eventRow}>
                   <View style={styles.moveButtons}>
                     <TouchableOpacity onPress={() => moveEvent(index, -1)} disabled={index === 0} style={styles.moveBtn}>
                       <Text style={[styles.moveBtnText, index === 0 && styles.moveBtnDisabled]}>▲</Text>
@@ -510,11 +518,8 @@ export default function ManageScreen() {
                   </View>
                 </View>
               );
-            }}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<Text style={styles.empty}>No schedule events yet</Text>}
-          />
-          </KeyboardAvoidingView>
+            })}
+          </KeyboardAwareScrollView>
         )
       )}
     </ScreenWrapper>

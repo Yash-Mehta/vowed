@@ -8,9 +8,10 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
 import {
-  KeyboardAvoidingView,
   useKeyboardState,
+  useReanimatedKeyboardAnimation,
 } from 'react-native-keyboard-controller';
 import {
   collection,
@@ -49,9 +50,35 @@ export function CommentSheet({ postId, onClose }: Props) {
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   // Selector form, so this re-renders only when visibility flips rather than on
-  // every frame of the keyboard animation — the avoidance itself is driven
-  // natively by KeyboardAvoidingView below.
+  // every frame of the keyboard animation — the avoidance itself never touches
+  // React state, it runs on the UI thread in the worklet below.
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
+  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
+
+  // Pad by the REAL keyboard height rather than letting KeyboardAvoidingView
+  // derive it. That component computes
+  //
+  //     padding = max(frame.y + frame.height - (screenHeight - keyboardHeight), 0)
+  //
+  // where screenHeight is Dimensions.get('screen').height but `frame` is this
+  // view's onLayout rect, which RN reports RELATIVE TO ITS PARENT. The two are
+  // only the same coordinate space when the view is a full-screen root. This
+  // sheet is presentationStyle="pageSheet", which on iOS is inset from the top
+  // of the screen, so frame.height came up short by that inset and the padding
+  // with it — the composer stayed under the keyboard by exactly the sheet's top
+  // offset. On Android the same Modal is a full-screen Dialog (presentationStyle
+  // is a no-op there), frame.height == screenHeight, and the derived padding
+  // happened to be right, which is why this looked like an iOS-only bug when it
+  // is really a container-shape bug.
+  //
+  // The keyboard height needs no correction: it is measured from the bottom of
+  // the screen, and this container's bottom edge is flush with the bottom of the
+  // screen in both a pageSheet and an Android Dialog. heightSV is negative while
+  // the keyboard is up (animated.tsx: heightSV.value = -event.height), so negate
+  // it back into a padding.
+  const keyboardAvoidStyle = useAnimatedStyle(() => ({
+    paddingBottom: -keyboardHeight.value,
+  }));
 
   // Deliberately NOT measuring the keyboard from JS here. Every previous
   // attempt in this file was structurally unable to work, and the temptation to
@@ -130,12 +157,11 @@ export function CommentSheet({ postId, onClose }: Props) {
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}>
-      {/* behavior="padding" is exact parity with what this file used to do by
-          hand: pad the flex: 1 container so the FlatList shrinks and the
-          composer rides up with the keyboard. One code path for both platforms
-          — iOS behaved correctly before and still gets the same padding, timed
-          off the real keyboard animation. */}
-      <KeyboardAvoidingView style={styles.container} behavior="padding">
+      {/* Padding the flex: 1 container is exact parity with what this file did
+          by hand before: the FlatList shrinks and the composer rides up with
+          the keyboard. One code path for both platforms, driven off the real
+          keyboard animation on the UI thread. */}
+      <Reanimated.View style={[styles.container, keyboardAvoidStyle]}>
         <View style={styles.handle} />
         <View style={styles.titleRow}>
           <Text style={styles.title}>Comments</Text>
@@ -185,7 +211,7 @@ export function CommentSheet({ postId, onClose }: Props) {
             <Text style={styles.sendText}>Send</Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </Reanimated.View>
     </Modal>
   );
 }
