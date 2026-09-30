@@ -7,11 +7,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Keyboard,
-  Animated,
-  Platform,
-  useWindowDimensions,
 } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  useKeyboardState,
+} from 'react-native-keyboard-controller';
 import {
   collection,
   query,
@@ -48,108 +48,50 @@ export function CommentSheet({ postId, onClose }: Props) {
   const { firebaseUser, userDoc, weddingId } = useAuthStore();
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
-  const keyboardAnim = useRef(new Animated.Value(0)).current;
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const { width, height: windowHeight } = useWindowDimensions();
-  const unobstructedHeight = useRef(windowHeight);
-  // The no-keyboard baseline above is only meaningful for the orientation it
-  // was captured in. Track the width it was captured at so a rotation (or a
-  // foldable fold, which also changes width) can be detected below, instead
-  // of silently comparing a new orientation's windowHeight against a stale
-  // baseline from the old one.
-  const unobstructedWidth = useRef(width);
+  // Selector form, so this re-renders only when visibility flips rather than on
+  // every frame of the keyboard animation — the avoidance itself is driven
+  // natively by KeyboardAvoidingView below.
+  const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
 
+  // Deliberately NOT measuring the keyboard from JS here. Every previous
+  // attempt in this file was structurally unable to work, and the temptation to
+  // re-add one is why this note is long:
+  //
+  //  * `Keyboard.addListener` never fires inside an Android <Modal>. The
+  //    emitter is ReactRootView's CustomGlobalLayoutListener, installed on the
+  //    ACTIVITY window's view tree; a Modal's content is a DialogRootViewGroup
+  //    (a ReactViewGroup, not a ReactRootView) living on its own Dialog window.
+  //    `keyboardHeight` was therefore permanently 0 on Android, and
+  //    `Keyboard.metrics()` is no escape hatch — it returns only what that same
+  //    never-delivered event would have populated.
+  //  * The old shrink-detector (`windowHeight >= unobstructedHeight.current`)
+  //    was a tautology. `useWindowDimensions()` reads the Activity's
+  //    CONFIGURATION metrics, which have never tracked IME visibility on
+  //    Android, so it compared x >= x and could never be false.
+  //  * RN turns edge-to-edge on for the Dialog window itself, which makes the
+  //    SOFT_INPUT_ADJUST_RESIZE it sets inert — so the window does not resize
+  //    on its own either, on Android 11-14 as much as on 15+.
+  //  * `presentationStyle="pageSheet"` is literally `= Unit` on Android.
+  //
+  // Two workarounds that lived here are gone with the measurement, because both
+  // existed only to paper over that blindness: a teardown that forced the
+  // padding back to 0 in case a hide event was dropped after the listeners were
+  // removed, and a rotation special case that gave up on padding whenever the
+  // width changed while the keyboard was up, because the no-keyboard baseline
+  // belonged to the previous orientation. There is no baseline and no padding
+  // state to get stuck any more; the library observes the Dialog's window
+  // directly and drives the padding on the UI thread.
+
+  // Keeping the newest comment in view when the keyboard opens used to live in
+  // the (never-firing) keyboardDidShow listener. The list's own
+  // onContentSizeChange cannot stand in for it: the content does not change
+  // size, only the viewport shrinks, so the offset that was at the bottom is
+  // suddenly a keyboard's height short of it.
   useEffect(() => {
-    if (!postId) return;
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    // Seed from current state: the sheet can be opened while a keyboard is
-    // already up, and a focus swap does not always fire a show event.
-    // keyboardAnim must be seeded the same way: it drives the iOS padding
-    // path and is otherwise only ever mutated inside the show/hide listeners
-    // below, so without this it would start each mount of this effect from
-    // whatever value survived the previous mount instead of the real current
-    // keyboard state.
-    const initialKeyboardHeight = Keyboard.metrics()?.height ?? 0;
-    setKeyboardHeight(initialKeyboardHeight);
-    keyboardAnim.setValue(initialKeyboardHeight);
-
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-      Animated.timing(keyboardAnim, {
-        toValue: e.endCoordinates.height,
-        duration: Platform.OS === 'ios' ? e.duration : 250,
-        useNativeDriver: false,
-      }).start();
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    });
-
-    const hideSub = Keyboard.addListener(hideEvent, (e) => {
-      setKeyboardHeight(0);
-      Animated.timing(keyboardAnim, {
-        toValue: 0,
-        duration: Platform.OS === 'ios' ? e.duration : 250,
-        useNativeDriver: false,
-      }).start();
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-      // These listeners are recreated per-postId (see the deps below), so
-      // closing the sheet tears them down. If the native hide event fires
-      // after that teardown — e.g. tapping Send (which does not blur the
-      // input) then immediately tapping ✕ — the hide is dropped and
-      // keyboardAnim/keyboardHeight are left stuck at their last non-zero
-      // value with nothing left to reset them, producing a dead gap under
-      // the sheet on the next open. Force both back to 0 here so a dropped
-      // hide can't survive a close. This looks removable (nothing is on
-      // screen while the sheet is closed), but removing it re-introduces
-      // that stuck-padding bug. Use setValue, not an animation — there is
-      // nothing visible to animate while closed.
-      setKeyboardHeight(0);
-      keyboardAnim.setValue(0);
-    };
-  }, [postId]);
-
-  // Remember how tall the window is with no keyboard up, so the next block can
-  // tell whether Android actually resized. Also capture the width the
-  // baseline was measured at (see unobstructedWidth above) so a later
-  // rotation can be detected.
-  useEffect(() => {
-    if (keyboardHeight === 0) {
-      unobstructedHeight.current = windowHeight;
-      unobstructedWidth.current = width;
-    }
-  }, [keyboardHeight, windowHeight, width]);
-
-  // Android's Modal sets SOFT_INPUT_ADJUST_RESIZE on its own dialog window, so
-  // the window usually shrinks by itself and padding on top of that would lift
-  // the composer into mid-air. That flag is ignored under the edge-to-edge
-  // display Expo 54 forces on Android 15+, and then nothing moves and the
-  // keyboard sits over the composer — which is the bug. Padding unconditionally
-  // (what this did) is wrong in the first case; not padding is wrong in the
-  // second. Measure instead of guessing: pad only when the window did NOT
-  // shrink. Same approach as components/CountryCodePicker.tsx.
-  // If the width changed since the baseline was captured, the device rotated
-  // (or a foldable folded) while the keyboard was up: unobstructedHeight.current
-  // still holds the PREVIOUS orientation's no-keyboard height, so comparing
-  // this orientation's windowHeight against it would be answering the wrong
-  // question. A fresh baseline requires the keyboard to go down first (see
-  // the effect above), which hasn't happened yet — so fall back to not
-  // padding rather than guess. That matches Android's own
-  // SOFT_INPUT_ADJUST_RESIZE behavior, the common case this whole measurement
-  // exists to find the exception to, so it is the safer default while the
-  // baseline is unknown for the current orientation.
-  const orientationChangedWithKeyboardUp = width !== unobstructedWidth.current;
-  const androidKeyboardPad =
-    Platform.OS === 'android' &&
-    keyboardHeight > 0 &&
-    !orientationChangedWithKeyboardUp &&
-    windowHeight >= unobstructedHeight.current
-      ? keyboardHeight
-      : 0;
+    if (!postId || !isKeyboardVisible) return;
+    const t = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    return () => clearTimeout(t);
+  }, [postId, isKeyboardVisible]);
 
   useEffect(() => {
     if (!postId || !weddingId) return;
@@ -178,10 +120,9 @@ export function CommentSheet({ postId, onClose }: Props) {
   }
 
   // The home-indicator gap belongs under the composer only while the keyboard
-  // is down; with it up, the keyboard occupies that space already. This was an
-  // interpolate over inputRange [0, 1] against a value that ranges to the
-  // keyboard height — it clamped to the right answer, but only by accident.
-  const bottomPad = keyboardHeight > 0 ? 0 : insets.bottom;
+  // is down; with it up, the keyboard occupies that space already. Same rule as
+  // before, now asked of a source that actually answers inside a Modal.
+  const bottomPad = isKeyboardVisible ? 0 : insets.bottom;
 
   return (
     <Modal
@@ -189,14 +130,12 @@ export function CommentSheet({ postId, onClose }: Props) {
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}>
-      <Animated.View
-        style={[
-          styles.container,
-          // iOS gets the animated lift, which matches keyboardWillShow's own
-          // duration. Android gets a measured value, or zero when its window
-          // already resized for us.
-          { paddingBottom: Platform.OS === 'ios' ? keyboardAnim : androidKeyboardPad },
-        ]}>
+      {/* behavior="padding" is exact parity with what this file used to do by
+          hand: pad the flex: 1 container so the FlatList shrinks and the
+          composer rides up with the keyboard. One code path for both platforms
+          — iOS behaved correctly before and still gets the same padding, timed
+          off the real keyboard animation. */}
+      <KeyboardAvoidingView style={styles.container} behavior="padding">
         <View style={styles.handle} />
         <View style={styles.titleRow}>
           <Text style={styles.title}>Comments</Text>
@@ -226,7 +165,7 @@ export function CommentSheet({ postId, onClose }: Props) {
           }
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         />
-        <Animated.View style={[styles.inputRow, { paddingBottom: bottomPad }]}>
+        <View style={[styles.inputRow, { paddingBottom: bottomPad }]}>
           <TextInput
             style={styles.input}
             value={text}
@@ -245,8 +184,8 @@ export function CommentSheet({ postId, onClose }: Props) {
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}>
             <Text style={styles.sendText}>Send</Text>
           </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

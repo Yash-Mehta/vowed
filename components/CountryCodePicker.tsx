@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
-  useWindowDimensions,
 } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  useKeyboardState,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES, Country } from '../constants/countries';
 import { theme } from '../constants/theme';
@@ -24,42 +24,26 @@ interface Props {
 export function CountryCodePicker({ value, onChange }: Props) {
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  const unobstructedHeight = useRef(windowHeight);
+  // Selector form, so only a visibility flip re-renders this; the sheet's lift
+  // is driven natively by KeyboardAvoidingView below.
+  const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
 
-  useEffect(() => {
-    if (!visible) return;
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    // Seed from current state: the phone screen autoFocuses its input, so the
-    // keyboard is typically already up when this opens and a focus swap does
-    // not necessarily fire a show event.
-    setKeyboardHeight(Keyboard.metrics()?.height ?? 0);
-    const show = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
-    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, [visible]);
-
-  useEffect(() => {
-    if (keyboardHeight === 0) unobstructedHeight.current = windowHeight;
-  }, [keyboardHeight, windowHeight]);
-
-  // iOS modals get no keyboard avoidance at all, so KeyboardAvoidingView lifts
-  // the sheet there. Android's Modal sets SOFT_INPUT_ADJUST_RESIZE on its dialog
-  // window (ReactModalHostView), so the window normally shrinks on its own and a
-  // KeyboardAvoidingView would double-count. That flag is ignored under
-  // edge-to-edge on Android 15+, so pad manually only when the window did NOT
-  // shrink — covering both behaviours without guessing which one is in play.
-  const keyboardOpen = keyboardHeight > 0;
-  const androidKeyboardPad =
-    Platform.OS === 'android' && keyboardOpen && windowHeight >= unobstructedHeight.current
-      ? keyboardHeight
-      : 0;
+  // This file used to carry the same JS keyboard measurement CommentSheet did,
+  // and it could not work for the same reason: on Android `Keyboard` events come
+  // from ReactRootView's CustomGlobalLayoutListener on the ACTIVITY window,
+  // while a <Modal>'s content is a DialogRootViewGroup on its own Dialog window
+  // — so `keyboardHeight` was always 0, `Keyboard.metrics()` reported the same
+  // nothing, and the `windowHeight >= unobstructedHeight.current` shrink test
+  // compared the Activity's configuration metrics against themselves, which can
+  // never be false. Do not reintroduce it.
+  //
+  // The breakage was invisible rather than absent: the sheet is maxHeight 70% in
+  // a justifyContent: 'flex-end' container, so the title and search field
+  // happened to land in the band the keyboard leaves visible, while the bottom
+  // ~40% of the country list was unreachable while typing. The library's
+  // KeyboardAvoidingView attaches to the Dialog's window, so the sheet is now
+  // genuinely lifted and the whole list is scrollable with the keyboard up.
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -71,7 +55,6 @@ export function CountryCodePicker({ value, onChange }: Props) {
 
   function close() {
     setQuery('');
-    setKeyboardHeight(0);
     setVisible(false);
   }
 
@@ -89,11 +72,15 @@ export function CountryCodePicker({ value, onChange }: Props) {
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-        <KeyboardAvoidingView
-          style={[styles.container, { paddingBottom: androidKeyboardPad }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* One code path for both platforms now. iOS already behaved correctly
+            with behavior="padding" and keeps exactly that; Android gains it for
+            the first time. The sheet keeps its own maxHeight: '70%', which now
+            resolves against the shrunken area, so the list gets shorter instead
+            of sliding under the keyboard. */}
+        <KeyboardAvoidingView style={styles.container} behavior="padding">
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close} />
-          <View style={[styles.sheet, { paddingBottom: keyboardOpen ? 8 : insets.bottom + 8 }]}>
+          <View
+            style={[styles.sheet, { paddingBottom: isKeyboardVisible ? 8 : insets.bottom + 8 }]}>
             <Text style={styles.title}>Choose a country</Text>
             <TextInput
               style={styles.search}

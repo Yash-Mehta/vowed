@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFonts } from 'expo-font';
 import {
@@ -204,42 +205,61 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* A Stack, not a Slot. Slot renders one child with no history, so
-          pushing a root-level route unmounted (tabs) entirely and coming back
-          remounted it on its initial route — every back button landed on the
-          feed regardless of where you started. animation: 'none' is the
-          default so the guard's replace() transitions still look the way they
-          did under Slot; only the four genuinely pushed routes animate. */}
-      {/* gestureEnabled defaults to true on iOS and animation:'none' does NOT
-          suppress it, so every root screen — the tabs, select-wedding, the auth
-          group — became edge-swipe-poppable. Off by default; on only for the
-          three routes where backing out is the point. compose stays off: a
-          stray swipe would discard a caption and up to ten attached photos. */}
-      <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
-        <Stack.Screen
-          name="guest/[uid]"
-          options={{ animation: 'slide_from_right', gestureEnabled: true }}
-        />
-        <Stack.Screen
-          name="settings"
-          options={{ animation: 'slide_from_right', gestureEnabled: true }}
-        />
-        <Stack.Screen
-          name="privacy"
-          options={{ animation: 'slide_from_right', gestureEnabled: true }}
-        />
-        <Stack.Screen name="compose" options={{ animation: 'slide_from_bottom' }} />
-      </Stack>
-      {showOverlay && (
-        <Animated.View style={[StyleSheet.absoluteFill, styles.overlay, { opacity: overlayOpacity }]}>
-          <Text style={styles.overlayTitle}>Vowed</Text>
-        </Animated.View>
-      )}
-      {!splashDone && (
-        <AnimatedSplash ready={!isLoading} onDone={() => setSplashDone(true)} />
-      )}
-    </View>
+    // KeyboardProvider belongs here — outside <Stack>, and outside the overlay
+    // and splash siblings — not inside a screen. On Android the built-in
+    // `Keyboard` events come from ReactRootView's CustomGlobalLayoutListener,
+    // installed on the ACTIVITY window's view tree. A <Modal>'s content is a
+    // DialogRootViewGroup (a ReactViewGroup, not a ReactRootView) on its own
+    // Dialog window, so nothing rendered inside a Modal can observe the
+    // keyboard from JS at all — `Keyboard.metrics()` reads the same never-
+    // populated state, and useWindowDimensions() reads the Activity's
+    // configuration metrics, which have never tracked IME visibility. This
+    // provider attaches the library's own KeyboardAnimationCallback to the
+    // Dialog's window and overrides RN's inert soft-input flag, which is the
+    // only reason CommentSheet and CountryCodePicker can avoid the keyboard on
+    // Android. Mounted inside the Stack it would work on plain screens and
+    // silently not in Modals, which is the exact bug it is here to fix.
+    // No props on purpose: under the edge-to-edge display Expo 54 forces, the
+    // library ORs its own translucency flags to true and then applies zero
+    // margins, so it will not fight react-native-safe-area-context.
+    <KeyboardProvider>
+      <View style={{ flex: 1 }}>
+        {/* A Stack, not a Slot. Slot renders one child with no history, so
+            pushing a root-level route unmounted (tabs) entirely and coming back
+            remounted it on its initial route — every back button landed on the
+            feed regardless of where you started. animation: 'none' is the
+            default so the guard's replace() transitions still look the way they
+            did under Slot; only the four genuinely pushed routes animate. */}
+        {/* gestureEnabled defaults to true on iOS and animation:'none' does NOT
+            suppress it, so every root screen — the tabs, select-wedding, the auth
+            group — became edge-swipe-poppable. Off by default; on only for the
+            three routes where backing out is the point. compose stays off: a
+            stray swipe would discard a caption and up to ten attached photos. */}
+        <Stack screenOptions={{ headerShown: false, animation: 'none', gestureEnabled: false }}>
+          <Stack.Screen
+            name="guest/[uid]"
+            options={{ animation: 'slide_from_right', gestureEnabled: true }}
+          />
+          <Stack.Screen
+            name="settings"
+            options={{ animation: 'slide_from_right', gestureEnabled: true }}
+          />
+          <Stack.Screen
+            name="privacy"
+            options={{ animation: 'slide_from_right', gestureEnabled: true }}
+          />
+          <Stack.Screen name="compose" options={{ animation: 'slide_from_bottom' }} />
+        </Stack>
+        {showOverlay && (
+          <Animated.View style={[StyleSheet.absoluteFill, styles.overlay, { opacity: overlayOpacity }]}>
+            <Text style={styles.overlayTitle}>Vowed</Text>
+          </Animated.View>
+        )}
+        {!splashDone && (
+          <AnimatedSplash ready={!isLoading} onDone={() => setSplashDone(true)} />
+        )}
+      </View>
+    </KeyboardProvider>
   );
 }
 
