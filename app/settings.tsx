@@ -6,11 +6,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
   Switch,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — the primary action button sat below the fold
+// with no scroll range to recover it.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -206,9 +209,10 @@ export default function SettingsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
         contentContainerStyle={styles.scroll}>
         <Text style={styles.sectionEyebrow}>YOUR PROFILE</Text>
         <Text style={styles.sectionSub}>
@@ -307,7 +311,7 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount} activeOpacity={0.7}>
           <Text style={styles.deleteAccountText}>Delete account</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </ScreenWrapper>
   );
 }

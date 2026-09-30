@@ -5,18 +5,17 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — see names.tsx for the full explanation.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { auth } from '../../lib/firebase';
 import { getUserIndex } from '../../lib/firestore';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { sendPhoneOtp, verifyPhoneOtp, buildE164, OtpRateLimitedError, OtpInvalidCodeError } from '../../lib/phoneAuth';
 import { CountryCodePicker } from '../../components/CountryCodePicker';
 import { OtpCodeInput } from '../../components/OtpCodeInput';
@@ -29,7 +28,6 @@ export default function CreateAccountScreen() {
   const router = useRouter();
   const { setPendingRole, globalProfile } = useAuthStore();
   const { update } = useOnboardingStore();
-  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
   const alreadySignedIn = !!auth.currentUser;
   // Global profile is populated by _layout.tsx's auth-state listener, so
@@ -160,14 +158,11 @@ export default function CreateAccountScreen() {
 
   if (alreadySignedIn) {
     return (
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.scroll}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={16}>
           <View style={styles.progress}>
             <View style={[styles.dot, styles.dotActive]} />
             <View style={styles.dot} />
@@ -193,7 +188,6 @@ export default function CreateAccountScreen() {
             autoCapitalize="words"
             autoFocus={!hasGlobalProfile}
             editable={!hasGlobalProfile}
-            onFocus={scrollToInput}
           />
 
           <TouchableOpacity
@@ -206,19 +200,16 @@ export default function CreateAccountScreen() {
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={16}>
         <View style={styles.progress}>
           <View style={[styles.dot, styles.dotActive]} />
           <View style={styles.dot} />
@@ -244,7 +235,6 @@ export default function CreateAccountScreen() {
               placeholder="e.g. Alex Chen"
               placeholderTextColor={theme.colors.ink4}
               autoCapitalize="words"
-              onFocus={scrollToInput}
             />
 
             <Text style={styles.label}>PHONE NUMBER</Text>
@@ -257,7 +247,6 @@ export default function CreateAccountScreen() {
                 placeholder="(555) 123-4567"
                 placeholderTextColor={theme.colors.ink4}
                 keyboardType="phone-pad"
-                onFocus={scrollToInput}
               />
             </View>
 
@@ -301,8 +290,7 @@ export default function CreateAccountScreen() {
             </TouchableOpacity>
           </>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -7,9 +7,13 @@ import {
   StyleSheet,
   Alert,
   Image,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — a plain ScrollView had no way to reveal fields
+// below the fold, and this screen had no keyboardShouldPersistTaps or bottom
+// padding at all, so a mistimed tap missed the submit button entirely.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -291,9 +295,11 @@ export default function ProfileSetupScreen() {
   }
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={styles.container}>
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={16}>
       <Text style={styles.title}>{isReturningUser ? 'Join this wedding' : 'Set up your profile'}</Text>
 
       {!isReturningUser && (
@@ -357,12 +363,16 @@ export default function ProfileSetupScreen() {
       }} activeOpacity={0.7}>
         <Text style={styles.backText}>Go back</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 32, paddingTop: 80 },
+  // No bottom padding previously existed at all — KeyboardAwareScrollView
+  // makes it unnecessary while the keyboard is open, but this value still
+  // matters for the resting (keyboard-closed) scroll, so it isn't dropped
+  // entirely. Matches sibling auth/onboarding screens' bottom padding.
+  container: { padding: 32, paddingTop: 80, paddingBottom: 40 },
   checking: { flex: 1, backgroundColor: theme.colors.bg, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: '700', marginBottom: 32, color: theme.colors.ink, fontFamily: theme.fonts.serif },
   avatarContainer: { alignSelf: 'center', marginBottom: 24, alignItems: 'center' },

@@ -9,12 +9,20 @@ import {
   Alert,
   TextInput,
   Switch,
-  ScrollView,
   Image,
   Modal,
   Platform,
   Share,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard. The settings tab's ScrollView becomes
+// KeyboardAwareScrollView, which manages the viewport itself; the schedule
+// tab's FlatList has no equivalent in this library, so it stays a FlatList
+// wrapped in KeyboardAvoidingView instead — padding shrinks the flex
+// container directly (tracked via real keyboard height, not window resize),
+// which is what gives the list a scroll range again when the schedule is
+// empty or the focused row is last.
+import { KeyboardAwareScrollView, KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   collection,
@@ -440,15 +448,16 @@ export default function ManageScreen() {
       )}
 
       {tab === 'settings' && (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bottomOffset={16}>
           <WeddingDetailsEditor weddingId={weddingId} config={config} />
           <InviteCodes config={config} />
           <LogoSettings weddingId={weddingId} config={config} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {tab === 'schedule' && (
         loadingSchedule ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.colors.accent} /> : (
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <FlatList
             data={events}
             keyExtractor={(e) => e.id}
@@ -505,6 +514,7 @@ export default function ManageScreen() {
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={<Text style={styles.empty}>No schedule events yet</Text>}
           />
+          </KeyboardAvoidingView>
         )
       )}
     </ScreenWrapper>

@@ -11,6 +11,12 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — a plain ScrollView has no scroll range to give
+// back on a screen this short, and the caption input (autoFocus) is the
+// worst-hit case in the app. KeyboardAwareScrollView manages the viewport
+// itself instead of relying on window resize.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { addDoc, serverTimestamp } from 'firebase/firestore';
@@ -161,9 +167,10 @@ export default function ComposeScreen() {
 
   return (
     <ScreenWrapper>
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
         contentContainerStyle={styles.scroll}>
         <View style={styles.topRow}>
           <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
@@ -263,7 +270,7 @@ export default function ComposeScreen() {
             />
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </ScreenWrapper>
   );
 }

@@ -5,20 +5,24 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   Alert,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard. That breaks both mechanisms this screen used to
+// rely on: RN's KeyboardAvoidingView behavior={ios ? 'padding' : undefined}
+// (undefined renders a plain View on Android) and useKeyboardAwareScroll's
+// scrollResponderScrollNativeHandleToKeyboard, whose scrollTo clamps to
+// contentHeight - viewportHeight — a viewport that never shrinks has almost
+// no scroll range. KeyboardAwareScrollView manages the viewport itself and
+// replaces both.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 export default function NamesScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
-  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
   const [person1, setPerson1] = useState(draft.person1First);
   const [person2, setPerson2] = useState(draft.person2First);
 
@@ -37,67 +41,61 @@ export default function NamesScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled">
-        <View style={styles.progress}>
-          <View style={[styles.dot, styles.dotDone]} />
-          <View style={[styles.dot, styles.dotActive]} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
+    <KeyboardAwareScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={16}>
+      <View style={styles.progress}>
+        <View style={[styles.dot, styles.dotDone]} />
+        <View style={[styles.dot, styles.dotActive]} />
+        <View style={styles.dot} />
+        <View style={styles.dot} />
+      </View>
+
+      <Text style={styles.eyebrow}>Step 2 of 4</Text>
+      <Text style={styles.title}>The happy couple</Text>
+      <Text style={styles.sub}>Enter the first names of the two people getting married.</Text>
+
+      <Text style={styles.label}>PARTNER 1</Text>
+      <TextInput
+        style={styles.input}
+        value={person1}
+        onChangeText={setPerson1}
+        placeholder="e.g. Alex"
+        placeholderTextColor={theme.colors.ink4}
+        autoCapitalize="words"
+        autoFocus
+      />
+
+      <Text style={styles.and}>and</Text>
+
+      <Text style={styles.label}>PARTNER 2</Text>
+      <TextInput
+        style={styles.input}
+        value={person2}
+        onChangeText={setPerson2}
+        placeholder="e.g. Jordan"
+        placeholderTextColor={theme.colors.ink4}
+        autoCapitalize="words"
+      />
+
+      {person1 && person2 && (
+        <View style={styles.preview}>
+          <Text style={styles.previewName}>{person1.trim()}</Text>
+          <Text style={styles.previewAnd}>and</Text>
+          <Text style={styles.previewName}>{person2.trim()}</Text>
         </View>
+      )}
 
-        <Text style={styles.eyebrow}>Step 2 of 4</Text>
-        <Text style={styles.title}>The happy couple</Text>
-        <Text style={styles.sub}>Enter the first names of the two people getting married.</Text>
+      <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>
+        <Text style={styles.btnText}>Continue</Text>
+      </TouchableOpacity>
 
-        <Text style={styles.label}>PARTNER 1</Text>
-        <TextInput
-          style={styles.input}
-          value={person1}
-          onChangeText={setPerson1}
-          placeholder="e.g. Alex"
-          placeholderTextColor={theme.colors.ink4}
-          autoCapitalize="words"
-          autoFocus
-          onFocus={scrollToInput}
-        />
-
-        <Text style={styles.and}>and</Text>
-
-        <Text style={styles.label}>PARTNER 2</Text>
-        <TextInput
-          style={styles.input}
-          value={person2}
-          onChangeText={setPerson2}
-          placeholder="e.g. Jordan"
-          placeholderTextColor={theme.colors.ink4}
-          autoCapitalize="words"
-          onFocus={scrollToInput}
-        />
-
-        {person1 && person2 && (
-          <View style={styles.preview}>
-            <Text style={styles.previewName}>{person1.trim()}</Text>
-            <Text style={styles.previewAnd}>and</Text>
-            <Text style={styles.previewName}>{person2.trim()}</Text>
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>
-          <Text style={styles.btnText}>Continue</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+        <Text style={styles.backText}>← Back</Text>
+      </TouchableOpacity>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -333,6 +333,10 @@ export default function FeedScreen() {
         keyExtractor={(p) => p.id}
         extraData={likedIds}
         showsVerticalScrollIndicator={false}
+        // Without this, the inline caption Save/Cancel buttons in
+        // PostCard/AnnouncementCard (rendered as list rows) eat the first tap
+        // dismissing the keyboard instead of firing — a second tap is needed.
+        keyboardShouldPersistTaps="handled"
         onEndReached={loadMore}
         onEndReachedThreshold={PREFETCH_SCREENS}
         ListHeaderComponent={
