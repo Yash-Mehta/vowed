@@ -21,6 +21,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { storage, auth } from '../lib/firebase';
 import { getMember, getWeddingPreviews, updateMember, setUserProfile, deleteAccountFully } from '../lib/firestore';
+import { userMessage } from '../lib/errors';
 import { useAuthStore } from '../store/authStore';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Avatar } from '../components/Avatar';
@@ -149,7 +150,7 @@ export default function SettingsScreen() {
       setGlobalProfile({ displayName: name, photoURL: photoURI, phoneNumber: globalProfile?.phoneNumber ?? null });
       Alert.alert('Saved', 'Your profile has been updated everywhere you\'re a guest or host.');
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not save changes. Please try again.');
+      Alert.alert('Error', userMessage(e, 'Could not save changes. Please try again.'));
     } finally {
       setSaving(false);
     }

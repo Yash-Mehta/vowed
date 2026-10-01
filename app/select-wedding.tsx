@@ -15,6 +15,7 @@ import { useAuthStore } from '../store/authStore';
 import { getMember, getWeddingPreviews, leaveWedding, WeddingPreview } from '../lib/firestore';
 import { registerForPushNotifications } from '../lib/notifications';
 import { auth } from '../lib/firebase';
+import { userMessage } from '../lib/errors';
 import { theme } from '../constants/theme';
 
 export default function SelectWeddingScreen() {
@@ -52,8 +53,8 @@ export default function SelectWeddingScreen() {
               const updated = userWeddingIds.filter((id) => id !== item.weddingId);
               setUserWeddingIds(updated);
               setPreviews((prev) => prev.filter((p) => p.weddingId !== item.weddingId));
-            } catch (e: any) {
-              Alert.alert('Error', e.message ?? 'Could not leave this wedding party.');
+            } catch (e: unknown) {
+              Alert.alert('Error', userMessage(e, 'Could not leave this wedding party.'));
             }
           },
         },
@@ -98,7 +99,7 @@ export default function SelectWeddingScreen() {
         await dropStaleWedding(uid, weddingId);
         return;
       }
-      Alert.alert('Error', e.message ?? 'Could not join this wedding.');
+      Alert.alert('Error', userMessage(e, 'Could not join this wedding.'));
     } finally {
       setJoining(null);
     }
