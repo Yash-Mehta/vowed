@@ -36,7 +36,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage } from '../../lib/firebase';
-import { UserDoc, PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
+import { PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
 import { WeddingConfig } from '../../lib/weddingConfig';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';

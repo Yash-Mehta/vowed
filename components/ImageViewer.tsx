@@ -7,7 +7,7 @@
 // black rectangle would read as a broken app, so a failed load says so.
 
 import { useEffect, useState } from 'react';
-import { Modal, View, Image, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { Modal, Image, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
