@@ -8,10 +8,14 @@ import {
   Alert,
   ScrollView,
   Animated,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+// Already works on both platforms via behavior="height" — see phone.tsx for
+// why that survives Expo SDK 54's forced edge-to-edge on Android where
+// "padding" (RN's resize-dependent version) would not. Import swapped for
+// consistency with the rest of the app; behavior deliberately left alone.
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';

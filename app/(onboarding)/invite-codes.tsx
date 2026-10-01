@@ -5,14 +5,15 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   Alert,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — see names.tsx for the full explanation. HOST
+// CODE is the field most guests never see, but every host does: with the
+// old mechanism its scroll range was ~10dp against a ~120dp requirement.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 // 8 random chars from a 32-char alphabet ≈ 1.1 trillion combinations — the
@@ -30,7 +31,6 @@ function generateCode(prefix: string): string {
 export default function InviteCodesScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
-  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
   const [guestCode, setGuestCode] = useState(
     draft.guestInviteCode || generateCode('G-')
   );
@@ -58,14 +58,11 @@ export default function InviteCodesScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={16}>
         <View style={styles.progress}>
           <View style={[styles.dot, styles.dotDone]} />
           <View style={[styles.dot, styles.dotDone]} />
@@ -89,7 +86,6 @@ export default function InviteCodesScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={12}
-            onFocus={scrollToInput}
           />
           <TouchableOpacity
             style={styles.regenerate}
@@ -109,7 +105,6 @@ export default function InviteCodesScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={12}
-            onFocus={scrollToInput}
           />
           <TouchableOpacity
             style={styles.regenerate}
@@ -126,8 +121,7 @@ export default function InviteCodesScreen() {
         <TouchableOpacity style={styles.back} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

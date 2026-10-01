@@ -6,11 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
   ScrollView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+// This screen already works on both platforms via behavior="height", which
+// (unlike "padding" under RN's own implementation) doesn't depend on the
+// window resizing — so it survives Expo SDK 54's forced edge-to-edge on
+// Android. Swapping only the import, not the behavior: the library's version
+// tracks real keyboard height instead of relying on RN's resize-based
+// events, but there is no working-but-broken case here to fix.
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { sendPhoneOtp, verifyPhoneOtp, buildE164, OtpRateLimitedError, OtpInvalidCodeError } from '../../lib/phoneAuth';

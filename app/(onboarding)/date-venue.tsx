@@ -5,16 +5,21 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
   Modal,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — see names.tsx for why that breaks both RN's
+// KeyboardAvoidingView (undefined behavior on Android) and the old
+// useKeyboardAwareScroll hook (near-zero scroll range on a clamped
+// viewport). This is the worst-hit screen of the four: REGISTRY URL is the
+// last field, unreachable at full scroll under the old mechanism.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { useKeyboardAwareScroll } from '../../hooks/useKeyboardAwareScroll';
 import { theme } from '../../constants/theme';
 
 function timeToPickerDate(hhmm: string): Date {
@@ -62,7 +67,6 @@ function formatDateStamp(iso: string): { dateStamp: string; shortDate: string; d
 export default function DateVenueScreen() {
   const router = useRouter();
   const { draft, update } = useOnboardingStore();
-  const { scrollViewRef, scrollToInput } = useKeyboardAwareScroll();
 
   // Parse existing date if available
   const existingDate = draft.weddingDateISO ? new Date(draft.weddingDateISO + 'T12:00:00Z') : null;
@@ -117,14 +121,11 @@ export default function DateVenueScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={16}>
         <View style={styles.progress}>
           <View style={[styles.dot, styles.dotDone]} />
           <View style={[styles.dot, styles.dotDone]} />
@@ -161,7 +162,6 @@ export default function DateVenueScreen() {
               placeholderTextColor={theme.colors.ink4}
               keyboardType="number-pad"
               maxLength={2}
-              onFocus={scrollToInput}
             />
           </View>
           <View style={{ width: 12 }} />
@@ -175,7 +175,6 @@ export default function DateVenueScreen() {
               placeholderTextColor={theme.colors.ink4}
               keyboardType="number-pad"
               maxLength={4}
-              onFocus={scrollToInput}
             />
           </View>
         </View>
@@ -232,7 +231,6 @@ export default function DateVenueScreen() {
           placeholderTextColor={theme.colors.ink4}
           keyboardType="number-pad"
           maxLength={2}
-          onFocus={scrollToInput}
         />
 
         <Text style={[styles.sectionHead, { marginTop: 20 }]}>VENUE</Text>
@@ -243,7 +241,6 @@ export default function DateVenueScreen() {
           onChangeText={setVenue}
           placeholder="e.g. The Grand Ballroom at Rosewood"
           placeholderTextColor={theme.colors.ink4}
-          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>SHORT NAME (for display)</Text>
@@ -253,7 +250,6 @@ export default function DateVenueScreen() {
           onChangeText={setVenueShort}
           placeholder="e.g. Rosewood Hotel"
           placeholderTextColor={theme.colors.ink4}
-          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>CITY / COUNTRY</Text>
@@ -263,7 +259,6 @@ export default function DateVenueScreen() {
           onChangeText={setLocation}
           placeholder="e.g. Santorini, Greece"
           placeholderTextColor={theme.colors.ink4}
-          onFocus={scrollToInput}
         />
 
         <Text style={styles.label}>REGISTRY URL (optional)</Text>
@@ -275,7 +270,6 @@ export default function DateVenueScreen() {
           placeholderTextColor={theme.colors.ink4}
           autoCapitalize="none"
           keyboardType="url"
-          onFocus={scrollToInput}
         />
 
         <TouchableOpacity style={styles.btn} onPress={handleContinue} activeOpacity={0.85}>
@@ -285,8 +279,7 @@ export default function DateVenueScreen() {
         <TouchableOpacity style={styles.back} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

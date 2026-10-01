@@ -6,13 +6,16 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
   Switch,
   AppState,
   Linking,
 } from 'react-native';
+// Expo SDK 54 forces edge-to-edge on Android, where the window no longer
+// resizes for the keyboard — "How do you know the couple?" sits mid-form and
+// was covered on focus with no scroll range to recover it.
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -206,9 +209,10 @@ export default function ProfileScreen() {
 
   return (
     <ScreenWrapper>
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
         contentContainerStyle={styles.scroll}>
         <Text style={styles.headerEyebrow}>YOUR DETAILS</Text>
         <Text style={styles.header}>My Profile</Text>
@@ -367,7 +371,7 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount} activeOpacity={0.7}>
           <Text style={styles.deleteAccountText}>Remove account</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </ScreenWrapper>
   );
 }
