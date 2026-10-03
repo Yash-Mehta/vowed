@@ -36,8 +36,9 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage } from '../../lib/firebase';
-import { UserDoc, PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
+import { PartyRole, membersCol, scheduleCol, updateMember, onSnapshotError } from '../../lib/firestore';
 import { WeddingConfig } from '../../lib/weddingConfig';
+import { userMessage } from '../../lib/errors';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/authStore';
 import { useWeddingStore } from '../../store/weddingStore';
@@ -609,8 +610,8 @@ function WeddingDetailsEditor({ weddingId, config }: { weddingId: string | null;
       // Refresh store
       useWeddingStore.getState().setConfig(configFromDoc({ ...(config ?? {}), ...updatedFields, weddingId }));
       Alert.alert('Saved', 'Wedding details updated.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not save changes.');
+    } catch (e: unknown) {
+      Alert.alert('Error', userMessage(e, 'Could not save changes.'));
     } finally {
       setSaving(false);
     }
@@ -839,8 +840,8 @@ function LogoSettings({ weddingId, config }: { weddingId: string | null; config:
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const downloadURL = await getDownloadURL(storageRef);
       await updateDoc(doc(db, 'weddings', weddingId), { coverPhotoURL: downloadURL });
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Could not upload photo.');
+    } catch (e: unknown) {
+      Alert.alert('Upload failed', userMessage(e, 'Could not upload photo.'));
     } finally {
       setUploading(false);
     }
@@ -877,8 +878,8 @@ function LogoSettings({ weddingId, config }: { weddingId: string | null; config:
                 );
               }
             }
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+          } catch (e: unknown) {
+            Alert.alert('Error', userMessage(e, 'Could not remove the photo. Please try again.'));
           } finally {
             setRemoving(false);
           }

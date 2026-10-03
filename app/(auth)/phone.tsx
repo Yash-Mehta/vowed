@@ -8,7 +8,6 @@ import {
   Alert,
   ScrollView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 // This screen already works on both platforms via behavior="height", which
 // (unlike "padding" under RN's own implementation) doesn't depend on the

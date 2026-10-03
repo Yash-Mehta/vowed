@@ -184,10 +184,10 @@ export async function validateInviteCode(
     return { weddingId: res.data.weddingId, role: res.data.role, preview: res.data.preview };
   } catch (e: unknown) {
     if (e instanceof FunctionsError && e.code === 'functions/resource-exhausted') {
-      throw new InviteCodeRateLimitedError(e.message);
+      throw new InviteCodeRateLimitedError('Too many attempts. Please wait a few minutes and try again.');
     }
     if (e instanceof FunctionsError && e.code === 'functions/deadline-exceeded') {
-      throw new InviteCodeTimeoutError(e.message);
+      throw new InviteCodeTimeoutError('This is taking longer than expected. Please check your connection and try again.');
     }
     // not-found (invalid code) and any other error → treat as invalid code
     return false;
@@ -209,7 +209,7 @@ export async function claimHostRole(weddingId: string, code: string): Promise<vo
     await call({ weddingId, code });
   } catch (e: unknown) {
     if (e instanceof FunctionsError && e.code === 'functions/resource-exhausted') {
-      throw new InviteCodeRateLimitedError(e.message);
+      throw new InviteCodeRateLimitedError('Too many attempts. Please wait a few minutes and try again.');
     }
     throw new Error(
       e instanceof FunctionsError && e.code === 'functions/permission-denied'

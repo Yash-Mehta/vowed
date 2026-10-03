@@ -20,6 +20,7 @@
 const DEFAULT_SEED_PHONES: Record<string, string> = {
   // seed-wedding-001 — James & Olivia
   'james.carter@example.com': '+12125550101',
+  'olivia.bennett@example.com': '+12125550108',
   'sophia.lane@example.com': '+12125550102',
   'ethan.brooks@example.com': '+12125550103',
   'maya.patel@example.com': '+12125550104',
@@ -29,6 +30,7 @@ const DEFAULT_SEED_PHONES: Record<string, string> = {
 
   // seed-wedding-002 — Emma & Ryan
   'emma.shaw@example.com': '+12125550111',
+  'ryan.torres@example.com': '+12125550115',
   'liam.chen@example.com': '+12125550112',
   'ava.jones@example.com': '+12125550113',
   'oliver.park@example.com': '+12125550114',

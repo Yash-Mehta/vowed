@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  View,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,6 +21,7 @@ import { useAuthStore } from '../../store/authStore';
 import { validateInviteCode, getMember, claimHostRole, addWeddingToIndex, CodeIndexDoc, InviteCodeRateLimitedError, InviteCodeTimeoutError } from '../../lib/firestore';
 import { theme } from '../../constants/theme';
 import { auth } from '../../lib/firebase';
+import { userMessage } from '../../lib/errors';
 
 export default function InviteScreen() {
   // Arrives from a shared join link (vowedsocial.com/join?code=… bounces into
@@ -102,9 +102,9 @@ export default function InviteScreen() {
               setLoading(false);
               Alert.alert('Host access granted', "You've been given host access to this wedding.");
               backToSelectWedding();
-            } catch (e: any) {
+            } catch (e: unknown) {
               setLoading(false);
-              Alert.alert('Error', e?.message ?? 'Could not update your role. Please try again.');
+              Alert.alert('Error', userMessage(e, 'Could not update your role. Please try again.'));
             }
             return;
           }

@@ -1124,6 +1124,259 @@
     .feature-mini:hover .feature-icon { transform: scale(1.06); }
   }
 
+
+  /* ============================================================
+     10b. Demo video
+     A real screen recording of the app, framed as a device so it
+     reads as the product rather than as page decoration. The frame
+     is built from the semantic tile tokens, so dark mode needs no
+     override here — it inherits whatever those flip to.
+     ============================================================ */
+
+  .demo {
+    /* Matches .features' rhythm, with a tighter top because the
+       countdown card sits directly above. */
+    padding: clamp(4rem, 8vw, 6.5rem) var(--pad-r) clamp(4rem, 8vw, 6rem) var(--pad-l);
+    position: relative;
+    /* The bloom behind the frame is deliberately wider than the frame, which
+       on a phone pushed the whole document sideways. clip, not hidden: it
+       trims the overflow without turning the section into a scroll container
+       and without breaking position: sticky anywhere inside it. */
+    overflow-x: clip;
+  }
+
+  .demo-head {
+    max-width: 680px;
+    margin: 0 auto clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
+    text-align: center;
+  }
+
+  .demo-head p {
+    margin: 0.85rem 0 0;
+    color: var(--ink3);
+    line-height: 1.6;
+  }
+
+  /* --- Guest / Host switch ------------------------------------
+     Shaped like the segmented control inside Host Tools, so the
+     first control a visitor touches is one they meet again in the
+     app. Colour and surface change on select; nothing moves, because
+     this is a state indication and not a transition between places. */
+
+  .demo-roles {
+    display: inline-flex;
+    gap: 4px;
+    margin: 1.4rem auto 0;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--accent-tint);
+  }
+
+  .demo-role {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    padding: 0.5rem 1.2rem;
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--ink3);
+    background: transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out),
+                background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .demo-role[aria-selected="true"] {
+    color: var(--ink);
+    background: var(--cream-raised);
+    box-shadow: var(--shadow-1);
+  }
+
+  .demo-role:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .demo-role:not([aria-selected="true"]):hover { color: var(--ink); }
+  }
+
+  .demo-grid {
+    display: grid;
+    /* The phone keeps its intrinsic width; the notes take the rest.
+       One column below 900px so the frame never shrinks to illegible. */
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: clamp(2rem, 1rem + 4vw, 4.5rem);
+    align-items: center;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .demo-grid {
+      grid-template-columns: minmax(0, 300px);
+      justify-content: center;
+      gap: 2.5rem;
+    }
+  }
+
+  /* --- The device frame -------------------------------------- */
+
+  .phone-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Warm bloom behind the glass. Colour, not motion, so it stays
+     put under reduced-motion. */
+  .phone-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -14% -22% -8%;
+    background:
+      radial-gradient(60% 50% at 50% 38%, var(--spotlight-tint), transparent 70%);
+    filter: blur(28px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .phone {
+    position: relative;
+    z-index: 1;
+    /* iPhone 17 capture is 1206x2622 — declared so the row never
+       reflows when the video metadata lands. */
+    aspect-ratio: 600 / 1304;
+    width: 100%;
+    max-width: 300px;
+    margin-inline: auto;
+    border-radius: 42px;
+    padding: 9px;
+    background: linear-gradient(170deg, var(--tile-from), var(--tile-to));
+    box-shadow: var(--shadow-4);
+  }
+
+  .phone-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 34px;
+    overflow: hidden;
+    background: var(--surface3);
+    /* Keeps the recording's own edges from reading as a seam against
+       the bezel. */
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+  }
+
+  .phone-screen video,
+  .phone-screen img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Both recordings are mounted at once and crossfaded. Swapping a
+     single <source> would need load(), which blanks the frame to the
+     poster and drops the element's height for a tick. */
+  .phone-screen video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+  }
+
+  .phone-screen video.is-active { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phone-screen video { transition: none; }
+  }
+
+  /* --- Play / pause ------------------------------------------
+     Auto-playing motion longer than five seconds needs a stop
+     control (WCAG 2.2.2), and it doubles as the start control when
+     reduced-motion has kept the video paused. */
+
+  .demo-toggle {
+    /* Below the frame, not inside it: over the screen it landed on the
+       app's own tab bar and read as a sixth tab. */
+    position: relative;
+    z-index: 2;
+    margin: 0.9rem auto 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px 7px 11px;
+    font: inherit;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    backdrop-filter: blur(10px) saturate(1.3);
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out),
+                background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .demo-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .demo-toggle:hover { transform: translateY(-1px); background: var(--cream-raised); }
+  }
+
+  .demo-toggle:active { transform: translateY(0) scale(0.97); }
+
+  .demo-toggle .glyph { font-size: 0.68rem; line-height: 1; }
+
+  /* --- Caption rows ------------------------------------------ */
+
+  .demo-notes {
+    display: grid;
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .demo-notes[hidden] { display: none; }
+
+  .demo-note {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0 14px;
+    align-items: start;
+  }
+
+  .demo-note .step {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-tint);
+    color: var(--accent-deep);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .demo-note dt {
+    font-weight: 500;
+    color: var(--ink);
+    align-self: center;
+  }
+
+  .demo-note dd {
+    grid-column: 2;
+    margin: 4px 0 0;
+    color: var(--ink3);
+    font-size: 0.94rem;
+    line-height: 1.55;
+  }
+
   /* ============================================================
      11. Accessibility preferences
      ============================================================ */
@@ -1295,6 +1548,105 @@
   </div>
   </div>
 </div>
+
+<section class="demo" aria-labelledby="demo-heading">
+  <div class="demo-head observe-reveal">
+    <p class="eyebrow">A look inside</p>
+    <h2 id="demo-heading">See it in action</h2>
+    <p>The same wedding from both sides &mdash; what a guest opens, and what the couple can change.</p>
+
+    <div class="demo-roles" role="tablist" aria-label="Whose view to show">
+      <button class="demo-role" id="role-guest" type="button"
+              role="tab" aria-selected="true" aria-controls="demo-stage" data-role="guest">Guest</button>
+      <button class="demo-role" id="role-host" type="button"
+              role="tab" aria-selected="false" aria-controls="demo-stage" tabindex="-1" data-role="host">Host</button>
+    </div>
+  </div>
+
+  <!-- One panel, relabelled by whichever tab is live. The phone is shared
+       between the two roles, so a panel per tab would duplicate it. -->
+  <div class="demo-grid" id="demo-stage" role="tabpanel" aria-labelledby="role-guest" tabindex="0">
+    <div class="phone-wrap observe-reveal">
+      <div class="phone">
+        <div class="phone-screen">
+          <!-- Screen recordings of the real app on an iPhone simulator. The
+               dimensions below are the files' own and must stay in sync with
+               the aspect-ratio on .phone. -->
+          <video
+            id="demo-guest" class="is-active"
+            width="600" height="1304"
+            muted loop playsinline preload="metadata"
+            poster="demo-guest-poster.jpg"
+            aria-label="Screen recording of Vowed as a guest: the shared feed, the schedule, the guest list, their own profile and the registry">
+            <source src="demo-guest.webm" type="video/webm">
+            <source src="demo-guest.mp4" type="video/mp4">
+          </video>
+          <!-- preload=none until its tab is chosen: the host recording is a
+               second file nobody has asked for yet. -->
+          <video
+            id="demo-host"
+            width="600" height="1304"
+            muted loop playsinline preload="none"
+            poster="demo-host-poster.jpg"
+            aria-label="Screen recording of Vowed as a host: assigning guest roles, building the schedule, and editing the wedding details"
+            aria-hidden="true">
+            <source src="demo-host.webm" type="video/webm">
+            <source src="demo-host.mp4" type="video/mp4">
+          </video>
+        </div>
+      </div>
+      <button class="demo-toggle" id="demo-toggle" type="button" aria-pressed="false" aria-controls="demo-guest">
+        <span class="glyph" aria-hidden="true">&#10074;&#10074;</span><span class="label">Pause</span>
+      </button>
+    </div>
+
+    <dl class="demo-notes observe-reveal" data-notes="guest">
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">1</span>
+        <dt>One feed for everything</dt>
+        <dd>Photos, pinned announcements and the small updates that would otherwise be scattered across five group chats.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">2</span>
+        <dt>The whole weekend, in order</dt>
+        <dd>Every event with its time, place and dress code, from the welcome cocktails through the farewell brunch.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">3</span>
+        <dt>Who everyone is</dt>
+        <dd>The couple, the family and the wedding party &mdash; so nobody has to ask who they are sitting next to.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">4</span>
+        <dt>Your details, and the gift list</dt>
+        <dd>Say how you know the couple, choose what you are notified about, and reach the registry in a tap.</dd>
+      </div>
+    </dl>
+
+    <dl class="demo-notes observe-reveal" data-notes="host" hidden>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">1</span>
+        <dt>The same feed you give everyone</dt>
+        <dd>Hosts post into the same place guests do. What they pin rides at the top for the whole party.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">2</span>
+        <dt>Roles, assigned by hand</dt>
+        <dd>Mark the couple, the family and the wedding party &mdash; and promote a second host so neither of you carries it alone.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">3</span>
+        <dt>The schedule is yours to build</dt>
+        <dd>Add an event with its time, venue, dress code and colour, and flag the one that is the main event.</dd>
+      </div>
+      <div class="demo-note">
+        <span class="step" aria-hidden="true">4</span>
+        <dt>Every detail in one form</dt>
+        <dd>Names, date, ceremony time, venue, hashtag and registry link. Change it once and it lands for everyone.</dd>
+      </div>
+    </dl>
+  </div>
+</section>
 
 <section class="features">
   <div class="features-head">
@@ -1514,6 +1866,139 @@
     }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
 
     for (var k = 0; k < targets.length; k++) io.observe(targets[k]);
+  })();
+
+  /* ----------------------------------------------------------
+     Demo video + guest/host switch
+     Plays only while on screen, and only if the visitor has not
+     asked for reduced motion — an autoplaying device mockup is
+     exactly the kind of ambient movement that setting means to
+     stop. The poster carries the frame either way, so the section
+     never looks broken when the video stays paused.
+     ---------------------------------------------------------- */
+  (function demoVideo() {
+    var stage = document.getElementById('demo-stage');
+    var toggle = document.getElementById('demo-toggle');
+    if (!stage || !toggle) return;
+
+    var tabs = [].slice.call(stage.parentNode.querySelectorAll('.demo-role'));
+    var videos = {
+      guest: document.getElementById('demo-guest'),
+      host: document.getElementById('demo-host')
+    };
+    var notes = {
+      guest: stage.querySelector('[data-notes="guest"]'),
+      host: stage.querySelector('[data-notes="host"]')
+    };
+    if (!tabs.length || !videos.guest || !videos.host) return;
+
+    var label = toggle.querySelector('.label');
+    var glyph = toggle.querySelector('.glyph');
+    var current = 'guest';
+    // Whether the visitor has taken manual control. Once they have,
+    // scrolling away and back must not override their choice.
+    var manual = false;
+
+    function active() { return videos[current]; }
+
+    function paint() {
+      var paused = active().paused;
+      label.textContent = paused ? 'Play' : 'Pause';
+      glyph.textContent = paused ? '\u25B6' : '\u2759\u2759';
+      toggle.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      toggle.setAttribute('aria-controls', active().id);
+    }
+
+    function play() {
+      // Autoplay can still be refused (iOS low-power mode, for one).
+      // The rejection is expected, not an error — swallow it and leave
+      // the poster and the Play affordance in place.
+      var p = active().play();
+      if (p && typeof p.catch === 'function') p.catch(function () { paint(); });
+    }
+
+    function select(role, focus) {
+      if (role === current) return;
+      var outgoing = active();
+      outgoing.pause();
+      // Rewind the one being left so its tab always opens on its own
+      // first frame rather than wherever the visitor abandoned it.
+      try { outgoing.currentTime = 0; } catch (e) {}
+      outgoing.classList.remove('is-active');
+      outgoing.setAttribute('aria-hidden', 'true');
+
+      current = role;
+      var incoming = active();
+      // Only fetched once its tab has actually been asked for.
+      if (incoming.preload === 'none') incoming.preload = 'metadata';
+      incoming.classList.add('is-active');
+      incoming.removeAttribute('aria-hidden');
+
+      for (var i = 0; i < tabs.length; i++) {
+        var on = tabs[i].dataset.role === role;
+        tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on) tabs[i].removeAttribute('tabindex'); else tabs[i].setAttribute('tabindex', '-1');
+        if (on && focus) tabs[i].focus();
+      }
+      notes.guest.hidden = role !== 'guest';
+      notes.host.hidden = role !== 'host';
+      stage.setAttribute('aria-labelledby', 'role-' + role);
+
+      // Choosing a view is itself a request to watch it, so it plays even
+      // if the visitor had paused the other one — but never under
+      // reduced motion.
+      if (!reduceMotion.matches) play();
+      paint();
+    }
+
+    for (var t = 0; t < tabs.length; t++) {
+      tabs[t].addEventListener('click', function () { select(this.dataset.role, false); });
+    }
+
+    // Left/right between tabs is the expected keyboard model for a tablist.
+    stage.parentNode.querySelector('.demo-roles').addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      select(current === 'guest' ? 'host' : 'guest', true);
+    });
+
+    toggle.addEventListener('click', function () {
+      manual = true;
+      if (active().paused) play(); else active().pause();
+      paint();
+    });
+
+    for (var k in videos) {
+      videos[k].addEventListener('play', paint);
+      videos[k].addEventListener('pause', paint);
+    }
+
+    if (reduceMotion.matches) {
+      active().pause();
+      paint();
+    }
+
+    // React to the setting changing mid-visit rather than only at load.
+    reduceMotion.addEventListener('change', function (e) {
+      if (e.matches) { active().pause(); manual = false; }
+      paint();
+    });
+
+    if (!hasIO) {
+      if (!reduceMotion.matches) play();
+      paint();
+      return;
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (manual || reduceMotion.matches) continue;
+        if (entries[i].isIntersecting) play(); else active().pause();
+      }
+    }, { threshold: 0.35 });
+
+    io.observe(stage);
+    paint();
   })();
 
   /* ----------------------------------------------------------

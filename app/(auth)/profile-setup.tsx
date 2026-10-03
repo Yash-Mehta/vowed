@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { auth, storage } from '../../lib/firebase';
 import { createMember, getMember, claimHostRole, addWeddingToIndex, setUserProfile, UserDoc, UserRole } from '../../lib/firestore';
+import { userMessage } from '../../lib/errors';
 import { theme } from '../../constants/theme';
 
 export default function ProfileSetupScreen() {
@@ -277,8 +278,8 @@ export default function ProfileSetupScreen() {
       // has to be tapped again is a pointless extra step.
       switchWedding(pendingWeddingId, { ...memberData, fcmToken: null, createdAt: null });
       router.replace('/(tabs)/feed');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e: unknown) {
+      Alert.alert('Error', userMessage(e, 'Could not join this wedding. Please try again.'));
     } finally {
       setLoading(false);
     }

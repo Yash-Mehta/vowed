@@ -65,3 +65,13 @@ claude-flow.config.json
 
 # Claude Code local config
 CLAUDE.md
+*.aab
+
+# Local-only Admin SDK helpers — mint a custom token and inject a session into
+# the simulator. They read serviceAccountKey.json and are useless without it.
+mint-session.cjs
+inject-session.sh
+
+# Working notes with open security findings. MUST stay untracked: GitHub Pages
+# publishes /docs on this PUBLIC repo, so committing it would publish them.
+docs/vowed-context.md

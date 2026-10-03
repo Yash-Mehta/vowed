@@ -23,6 +23,7 @@ import { signOut } from 'firebase/auth';
 import { auth, storage } from '../../lib/firebase';
 import { updateMember, deleteAccountFully, leaveWedding, setUserProfile } from '../../lib/firestore';
 import { getNotificationPermissionStatus } from '../../lib/notifications';
+import { userMessage } from '../../lib/errors';
 import { useAuthStore } from '../../store/authStore';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { Avatar } from '../../components/Avatar';
@@ -129,7 +130,7 @@ export default function ProfileScreen() {
       setUserDoc({ ...userDoc!, isSingle: value });
     } catch (e: unknown) {
       setIsSingle(!value);
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not update. Please try again.');
+      Alert.alert('Error', userMessage(e, 'Could not update. Please try again.'));
     }
   }
 
@@ -150,8 +151,8 @@ export default function ProfileScreen() {
       setGlobalProfile({ displayName: name, photoURL: userDoc?.photoURL ?? photoURI, phoneNumber: globalProfile?.phoneNumber ?? null });
       setUserDoc({ ...userDoc!, displayName: name, howTheyKnow: know });
       Alert.alert('Saved', 'Your profile has been updated.');
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save changes. Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Error', userMessage(e, 'Could not save changes. Please try again.'));
     } finally {
       setSaving(false);
     }

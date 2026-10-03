@@ -15,6 +15,7 @@ import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { createMember, addWeddingToIndex, setUserProfile } from '../../lib/firestore';
+import { userMessage } from '../../lib/errors';
 import { theme } from '../../constants/theme';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -147,8 +148,8 @@ export default function ConfirmScreen() {
 
       reset();
       router.replace('/(tabs)/feed');
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not create your wedding. Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Error', userMessage(e, 'Could not create your wedding. Please try again.'));
     } finally {
       setLoading(false);
     }
