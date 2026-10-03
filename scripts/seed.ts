@@ -125,6 +125,18 @@ const HOST = {
   avatar: 'https://randomuser.me/api/portraits/men/11.jpg',
 };
 
+// The other half of the couple. A real wedding has two of these and the guest
+// list renders a 'Couple' section from partyRole, so seeding only the creator
+// left the bride missing from her own wedding. She is a host, not a guest:
+// both halves administer in practice, and role is authorization while
+// partyRole is only how the guest list groups people.
+const PARTNER = {
+  email: 'olivia.bennett@example.com',
+  displayName: 'Olivia Bennett',
+  howTheyKnow: 'The bride',
+  avatar: 'https://randomuser.me/api/portraits/women/65.jpg',
+};
+
 const POSTS = [
   {
     type: 'photo',
@@ -246,6 +258,20 @@ async function seed() {
   });
   await db.doc(`users/${hostUser.uid}`).set({ weddingIds: [WEDDING_ID], createdAt: admin.firestore.FieldValue.serverTimestamp() });
   console.log(`✓ Host: ${HOST.displayName} (${HOST.email})`);
+
+  // ── The other half of the couple ──────────────────────────────────────────
+  const partnerUser = await createUser(PARTNER.email);
+  await db.doc(`weddings/${WEDDING_ID}/members/${partnerUser.uid}`).set({
+    displayName: PARTNER.displayName,
+    photoURL: PARTNER.avatar,
+    howTheyKnow: PARTNER.howTheyKnow,
+    role: 'host',
+    partyRole: 'couple',
+    fcmToken: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.doc(`users/${partnerUser.uid}`).set({ weddingIds: [WEDDING_ID], createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  console.log(`✓ Host: ${PARTNER.displayName} (${PARTNER.email})`);
 
   // ── Guests ────────────────────────────────────────────────────────────────
   const guestUids: string[] = [];

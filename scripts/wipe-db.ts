@@ -19,6 +19,7 @@ const SEED_WEDDINGS = [
 const SEED_EMAILS = [
   // wedding-001
   'james.carter@example.com',
+  'olivia.bennett@example.com',
   'sophia.lane@example.com',
   'ethan.brooks@example.com',
   'maya.patel@example.com',
@@ -27,6 +28,7 @@ const SEED_EMAILS = [
   'noah.davis@example.com',
   // wedding-002
   'emma.shaw@example.com',
+  'ryan.torres@example.com',
   'liam.chen@example.com',
   'ava.jones@example.com',
   'oliver.park@example.com',

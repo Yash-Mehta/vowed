@@ -104,6 +104,15 @@ const SHARED_GUEST = {
   isSingle: true,
 };
 
+// The other half of the couple - see the same note in seed.ts. Emma created
+// this wedding, so without this Ryan is absent from his own guest list.
+const PARTNER = {
+  email: 'ryan.torres@example.com',
+  displayName: 'Ryan Torres',
+  howTheyKnow: 'The groom',
+  avatar: 'https://randomuser.me/api/portraits/men/85.jpg',
+};
+
 const GUESTS = [
   SHARED_GUEST,
   { email: 'liam.chen@example.com',    displayName: 'Liam Chen',     howTheyKnow: "Ryan's brother",              avatar: 'https://randomuser.me/api/portraits/men/41.jpg',   isSingle: true  },
@@ -166,6 +175,7 @@ async function seed2() {
     photoURL: HOST.avatar,
     howTheyKnow: HOST.howTheyKnow,
     role: 'host',
+    partyRole: 'couple',
     fcmToken: null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -174,6 +184,23 @@ async function seed2() {
     { merge: true }
   );
   console.log(`✓ Host: ${HOST.displayName} (${HOST.email})`);
+
+  // The other half of the couple
+  const partnerUser = await createUser(PARTNER.email);
+  await db.doc(`weddings/${WEDDING_ID}/members/${partnerUser.uid}`).set({
+    displayName: PARTNER.displayName,
+    photoURL: PARTNER.avatar,
+    howTheyKnow: PARTNER.howTheyKnow,
+    role: 'host',
+    partyRole: 'couple',
+    fcmToken: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.doc(`users/${partnerUser.uid}`).set(
+    { weddingIds: admin.firestore.FieldValue.arrayUnion(WEDDING_ID) },
+    { merge: true }
+  );
+  console.log(`✓ Host: ${PARTNER.displayName} (${PARTNER.email})`);
 
   // Guests
   for (const g of GUESTS) {
