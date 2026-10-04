@@ -1246,15 +1246,16 @@
     max-width: 300px;
     margin-inline: auto;
     border-radius: 42px;
-    padding: 9px;
     background: linear-gradient(170deg, var(--tile-from), var(--tile-to));
     box-shadow: var(--shadow-4);
   }
 
+  /* Inset, not padding + height: 100%. Safari resolves that percentage
+     against the aspect-ratio box's full height, ignoring the padding, so
+     the screen overhung the bezel's bottom edge. */
   .phone-screen {
-    position: relative;
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 9px;
     border-radius: 34px;
     overflow: hidden;
     background: var(--surface3);
