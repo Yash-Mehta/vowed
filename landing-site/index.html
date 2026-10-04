@@ -349,7 +349,12 @@
     position: relative;
     isolation: isolate;
     padding-bottom: clamp(4.5rem, 9vw, 7rem);
+    /* clip, not hidden: hidden makes the hero a scroll container, and the
+       "Get the app" scrollIntoView then scrolls the hero's own contents
+       when the window can't travel far enough, stranding the icon under
+       the header with no way to scroll it back. hidden is the fallback. */
     overflow: hidden;
+    overflow: clip;
   }
 
   /* Two offset blooms rather than one flat gradient: the warm tint
