@@ -318,9 +318,9 @@
     background: color-mix(in srgb, var(--cream-raised) 60%, transparent);
   }
 
-  /* Scroll progress hairline. animation-timeline runs off the main
-     thread, so this stays smooth while the page is still loading —
-     and it simply does not render where unsupported. */
+  /* Scroll progress hairline. Driven from script, not
+     animation-timeline: iOS Safari's scroll timeline desyncs during
+     momentum scrolling and snaps backwards when a fling settles. */
   .scroll-progress {
     position: absolute;
     left: 0;
@@ -330,16 +330,7 @@
     transform-origin: 0 50%;
     transform: scaleX(0);
     background: linear-gradient(90deg, var(--accent-soft), var(--accent), var(--champagne));
-    opacity: 0;
     pointer-events: none;
-  }
-  @supports (animation-timeline: scroll()) {
-    .scroll-progress {
-      opacity: 1;
-      animation: progressGrow linear forwards;
-      animation-timeline: scroll(root block);
-    }
-    @keyframes progressGrow { to { transform: scaleX(1); } }
   }
 
   /* ============================================================
@@ -2111,6 +2102,35 @@
     new IntersectionObserver(function (entries) {
       el.setAttribute('data-stuck', String(!entries[0].isIntersecting));
     }, { threshold: 0 }).observe(sentinel);
+  })();
+
+  /* ----------------------------------------------------------
+     Scroll progress
+     One write per frame, read straight from scrollY, so the bar
+     always matches where the page actually is -- including the end
+     of an iOS momentum fling. Clamped for rubber-band overscroll.
+     ---------------------------------------------------------- */
+  (function progress() {
+    var bar = document.querySelector('.scroll-progress');
+    if (!bar) return;
+    var root = document.documentElement;
+    var queued = false;
+
+    function paint() {
+      queued = false;
+      var range = root.scrollHeight - window.innerHeight;
+      var p = range > 0 ? window.scrollY / range : 0;
+      bar.style.transform = 'scaleX(' + Math.min(1, Math.max(0, p)) + ')';
+    }
+    function queue() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(paint);
+    }
+
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue, { passive: true });
+    paint();
   })();
 
   /* ----------------------------------------------------------
